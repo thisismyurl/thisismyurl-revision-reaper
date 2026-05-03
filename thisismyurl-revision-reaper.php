@@ -154,6 +154,8 @@ class TIMU_Revision_Reaper {
             }
         }
 
+        $bytes_freed = 0;
+
         foreach ( $items as $item ) {
             if ( 'trash' === $item['type'] ) {
                 // Non-destructive: delegate to WP's trash lifecycle. WP itself
@@ -173,10 +175,21 @@ class TIMU_Revision_Reaper {
                 $revisions = wp_get_post_revisions( $item['id'] );
                 $to_remove = array_slice( $revisions, $settings['limit'] );
                 foreach ( $to_remove as $rev ) {
+                    // Honest ROI: count actual bytes the row contributed
+                    // before we drop it. Sum of post_content lengths is the
+                    // dominant component on a revision.
+                    $bytes_freed += strlen( (string) $rev->post_content );
                     wp_delete_post_revision( $rev->ID );
                 }
                 $log[] = "Reaped revisions for Post #{$item['id']}";
             }
+        }
+
+        if ( $bytes_freed > 0 ) {
+            $log[] = sprintf( 'Bytes freed from revision rows: %s (%s)',
+                number_format_i18n( $bytes_freed ),
+                size_format( $bytes_freed )
+            );
         }
         
         // Expired transients live in wp_options (or sitemeta on multisite).
