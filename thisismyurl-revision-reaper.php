@@ -17,6 +17,12 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+if ( ! defined( 'TIMU_REVISION_REAPER_VERSION' ) ) {
+    define( 'TIMU_REVISION_REAPER_VERSION', '0.6123' );
+}
+
+require_once __DIR__ . '/includes/class-exporter.php';
+
 /**
  * Class TIMU_Revision_Reaper
  * Handles database cleanup for revisions, trash, and spam with automated scheduling.
@@ -30,6 +36,8 @@ class TIMU_Revision_Reaper {
         add_action( 'admin_menu', array( __CLASS__, 'add_admin_menu' ) );
         add_action( 'wp_ajax_timu_rr_purge_item', array( __CLASS__, 'ajax_purge_item' ) );
         add_action( 'wp_ajax_timu_rr_optimize_db', array( __CLASS__, 'ajax_optimize_db' ) );
+        add_action( 'wp_ajax_timu_rr_pre_run_export', array( __CLASS__, 'ajax_pre_run_export' ) );
+        add_action( 'admin_post_timu_rr_run', array( __CLASS__, 'handle_run_post' ) );
         add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), array( __CLASS__, 'add_plugin_action_links' ) );
         
         // Automated schedule hook
@@ -66,7 +74,19 @@ class TIMU_Revision_Reaper {
         
         $items = self::get_eligible_items( $settings );
         $log = array();
-        
+
+        // Pre-delete snapshot so a regretted scheduled run can be reconstructed
+        // from disk. Failure to write is logged but does not abort the run —
+        // the run itself uses trash, not force-delete (see class header).
+        if ( ! empty( $items ) ) {
+            $export_path = TIMU_Revision_Reaper_Exporter::snapshot_before_run( $items, (int) $settings['limit'] );
+            if ( $export_path ) {
+                $log[] = 'Pre-run export written: ' . wp_basename( $export_path );
+            } else {
+                $log[] = 'WARNING: pre-run export failed to write.';
+            }
+        }
+
         foreach ( $items as $item ) {
             if ( 'trash' === $item['type'] ) {
                 // Non-destructive: delegate to WP's trash lifecycle. WP itself
@@ -257,6 +277,67 @@ class TIMU_Revision_Reaper {
     }
 
     /**
+     * AJAX: snapshot eligible items before a live run.
+     *
+     * Triggered by the admin JS once, before the per-item delete loop. We
+     * recompute the eligible set server-side rather than trusting the JS
+     * payload — the page may have been open for hours.
+     */
+    public static function ajax_pre_run_export() {
+        check_ajax_referer( 'timu_rr_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( esc_html__( 'Unauthorized', 'thisismyurl-revision-reaper' ), 403 );
+        }
+
+        $settings = array(
+            'limit'         => (int) get_option( 'timu_rr_limit', 3 ),
+            'include_trash' => (int) get_option( 'timu_rr_auto_trash', 0 ),
+            'include_spam'  => (int) get_option( 'timu_rr_auto_spam', 0 ),
+        );
+
+        $items = self::get_eligible_items( $settings );
+
+        if ( empty( $items ) ) {
+            wp_send_json_success( esc_html__( 'Nothing to export — no eligible items.', 'thisismyurl-revision-reaper' ) );
+        }
+
+        $path = TIMU_Revision_Reaper_Exporter::snapshot_before_run( $items, $settings['limit'] );
+
+        if ( ! $path ) {
+            wp_send_json_error( esc_html__( 'Pre-run export failed to write. Aborting live run.', 'thisismyurl-revision-reaper' ), 500 );
+        }
+
+        wp_send_json_success( sprintf(
+            /* translators: %s: filename of the JSON export */
+            esc_html__( 'Pre-run export written: %s', 'thisismyurl-revision-reaper' ),
+            esc_html( wp_basename( $path ) )
+        ) );
+    }
+
+    /**
+     * admin-post handler: state-changing entry point for "begin a run".
+     *
+     * Replaces the old GET trigger (tools.php?page=revision-reaper&reap=1).
+     * Validates nonce + cap, then redirects back to the admin screen with
+     * the run-mode flag carried in a transient (not the URL).
+     */
+    public static function handle_run_post() {
+        check_admin_referer( 'timu_rr_run_action', 'timu_rr_run_nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( esc_html__( 'You do not have permission to start a Revision Reaper run.', 'thisismyurl-revision-reaper' ) );
+        }
+
+        $is_dry_run = ! empty( $_POST['dry_run'] );
+
+        $user_id = get_current_user_id();
+        set_transient( 'timu_rr_run_intent_' . $user_id, $is_dry_run ? 'dry' : 'live', 5 * MINUTE_IN_SECONDS );
+
+        wp_safe_redirect( admin_url( 'tools.php?page=revision-reaper&reap=1' ) );
+        exit;
+    }
+
+    /**
      * AJAX: Optimize Database Tables.
      */
     public static function ajax_optimize_db() {
@@ -336,8 +417,20 @@ class TIMU_Revision_Reaper {
         $saved_recurrence    = get_option( 'timu_rr_schedule_recurrence', 'weekly' );
 
         $settings = array( 'limit' => $current_limit, 'include_trash' => $auto_trash, 'include_spam' => $auto_spam );
-        $items = isset( $_GET['reap'] ) ? self::get_eligible_items( $settings ) : array();
-        $is_dry_run_active = isset( $_GET['dry_run'] ) && $_GET['dry_run'] === 'true';
+
+        // Run-mode is delivered via transient (set by handle_run_post) so it
+        // can't be replayed from a URL or bookmarked. ?reap=1 is just a flag
+        // indicating "we just came back from the admin-post POST".
+        $user_id           = get_current_user_id();
+        $run_intent_key    = 'timu_rr_run_intent_' . $user_id;
+        $run_intent        = isset( $_GET['reap'] ) ? get_transient( $run_intent_key ) : false;
+        $items             = $run_intent ? self::get_eligible_items( $settings ) : array();
+        $is_dry_run_active = ( 'dry' === $run_intent );
+
+        if ( $run_intent ) {
+            // One-shot — clear so a refresh doesn't re-arm the runner.
+            delete_transient( $run_intent_key );
+        }
         ?>
         <div class="wrap">
             <h1>
@@ -417,12 +510,38 @@ class TIMU_Revision_Reaper {
                                 
                                 <p class="submit">
                                     <input type="submit" name="rr_save_settings" class="button button-secondary" value="<?php esc_attr_e( 'Save All Settings & Schedule', 'thisismyurl-revision-reaper' ); ?>">
-                                    <button type="button" id="btn-dry-run" class="button button-secondary"><?php esc_html_e( 'Dry Run', 'thisismyurl-revision-reaper' ); ?></button>
-                                    <button type="button" id="btn-start" class="button button-primary"><?php esc_html_e( 'Run Now (Live)', 'thisismyurl-revision-reaper' ); ?></button>
                                 </p>
                             </div>
                         </div>
                         </form>
+
+                        <div class="postbox">
+                            <h2 class="hndle"><span><?php esc_html_e( 'Run Cleanup', 'thisismyurl-revision-reaper' ); ?></span></h2>
+                            <div class="inside">
+                                <p>
+                                    <?php esc_html_e( 'A "Dry Run" reports what would change without touching the database. A live run writes a JSON snapshot of every affected row to your uploads directory before any deletion, then trashes (never force-deletes) the matching items.', 'thisismyurl-revision-reaper' ); ?>
+                                </p>
+
+                                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block; margin-right: 8px;">
+                                    <?php wp_nonce_field( 'timu_rr_run_action', 'timu_rr_run_nonce' ); ?>
+                                    <input type="hidden" name="action" value="timu_rr_run">
+                                    <input type="hidden" name="dry_run" value="1">
+                                    <button type="submit" class="button button-secondary"><?php esc_html_e( 'Dry Run', 'thisismyurl-revision-reaper' ); ?></button>
+                                </form>
+
+                                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;" id="rr-live-run-form">
+                                    <?php wp_nonce_field( 'timu_rr_run_action', 'timu_rr_run_nonce' ); ?>
+                                    <input type="hidden" name="action" value="timu_rr_run">
+                                    <p>
+                                        <label>
+                                            <input type="checkbox" name="rr_backup_confirm" id="rr-backup-confirm" value="1">
+                                            <?php esc_html_e( 'I understand a JSON snapshot will be written to uploads/revision-reaper/exports/ before deletion and I have verified my own backups are current.', 'thisismyurl-revision-reaper' ); ?>
+                                        </label>
+                                    </p>
+                                    <button type="submit" class="button button-primary" id="rr-live-run-btn" disabled><?php esc_html_e( 'Run Now (Live)', 'thisismyurl-revision-reaper' ); ?></button>
+                                </form>
+                            </div>
+                        </div>
 
                         <div id="reap-area" class="postbox" <?php echo empty($items) ? 'style="display:none;"' : ''; ?>>
                             <h2 class="hndle"><span><?php echo $is_dry_run_active ? 'Simulation' : 'Live Activity'; ?> Log</span></h2>
@@ -441,11 +560,25 @@ class TIMU_Revision_Reaper {
         <script>
         jQuery(document).ready(function($) {
             const nonce = '<?php echo esc_js( wp_create_nonce( "timu_rr_nonce" ) ); ?>';
-            
-            $('#btn-start, #btn-dry-run').click(function() {
-                const isDryRun = $(this).attr('id') === 'btn-dry-run';
-                if(!isDryRun && !confirm('<?php echo esc_js( __( "Start live database cleanup?", "thisismyurl-revision-reaper" ) ); ?>')) return;
-                window.location.href = 'tools.php?page=revision-reaper&reap=1&dry_run='+isDryRun;
+
+            // Live-run button stays disabled until the operator ticks the
+            // backup-confirm checkbox. The form itself also re-checks on
+            // submit in case the disabled attr is removed in DevTools.
+            $('#rr-backup-confirm').on('change', function() {
+                $('#rr-live-run-btn').prop('disabled', ! this.checked);
+            });
+
+            $('#rr-live-run-form').on('submit', function(e) {
+                if ( ! $('#rr-backup-confirm').is(':checked') ) {
+                    e.preventDefault();
+                    alert('<?php echo esc_js( __( 'Please confirm the backup acknowledgement before running a live cleanup.', 'thisismyurl-revision-reaper' ) ); ?>');
+                    return false;
+                }
+                if ( ! confirm('<?php echo esc_js( __( 'Start live database cleanup? Items will be exported to JSON, then trashed.', 'thisismyurl-revision-reaper' ) ); ?>') ) {
+                    e.preventDefault();
+                    return false;
+                }
+                return true;
             });
 
             <?php if ( ! empty( $items ) ) : ?>
@@ -453,35 +586,55 @@ class TIMU_Revision_Reaper {
                 const total = items.length;
                 let completed = 0;
 
-                const processNext = () => {
-                    if (items.length === 0) {
-                        <?php if (!$is_dry_run_active) : ?>
-                            $('#rr-log').prepend('<div><strong>Cleanup finished. Optimizing tables...</strong></div>');
-                            $.post(ajaxurl, { action: 'timu_rr_optimize_db', nonce: nonce }).done(function(res) {
-                                $('#rr-log').prepend('<div style="color:green;">' + res.data + '</div>');
-                            });
-                        <?php else : ?>
-                             $('#rr-log').prepend('<div><strong>Simulation complete. No changes made.</strong></div>');
-                        <?php endif; ?>
-                        return;
-                    }
+                const startProcessing = () => {
+                    const processNext = () => {
+                        if (items.length === 0) {
+                            <?php if (!$is_dry_run_active) : ?>
+                                $('#rr-log').prepend('<div><strong>Cleanup finished. Optimizing tables...</strong></div>');
+                                $.post(ajaxurl, { action: 'timu_rr_optimize_db', nonce: nonce }).done(function(res) {
+                                    $('#rr-log').prepend('<div style="color:green;">' + res.data + '</div>');
+                                });
+                            <?php else : ?>
+                                 $('#rr-log').prepend('<div><strong>Simulation complete. No changes made.</strong></div>');
+                            <?php endif; ?>
+                            return;
+                        }
 
-                    const item = items.shift();
-                    $.post(ajaxurl, { 
-                        action: 'timu_rr_purge_item', 
-                        item_id: item.id, 
-                        item_type: item.type, 
-                        limit: <?php echo (int)$current_limit; ?>,
-                        dry_run: '<?php echo $is_dry_run_active ? "true" : "false"; ?>',
-                        nonce: nonce 
-                    }).done(function(res) {
-                        completed++;
-                        $('#rr-progress-bar').css('width', Math.round((completed / total) * 100) + '%');
-                        $('#rr-log').prepend('<div>' + res.data + '</div>');
-                        processNext();
-                    });
+                        const item = items.shift();
+                        $.post(ajaxurl, {
+                            action: 'timu_rr_purge_item',
+                            item_id: item.id,
+                            item_type: item.type,
+                            limit: <?php echo (int) $current_limit; ?>,
+                            dry_run: '<?php echo $is_dry_run_active ? 'true' : 'false'; ?>',
+                            nonce: nonce
+                        }).done(function(res) {
+                            completed++;
+                            $('#rr-progress-bar').css('width', Math.round((completed / total) * 100) + '%');
+                            $('#rr-log').prepend('<div>' + res.data + '</div>');
+                            processNext();
+                        });
+                    };
+                    processNext();
                 };
-                processNext();
+
+                <?php if ( ! $is_dry_run_active ) : ?>
+                    // Live run: snapshot before we touch anything.
+                    $('#rr-log').prepend('<div><strong>Writing pre-run export...</strong></div>');
+                    $.post(ajaxurl, { action: 'timu_rr_pre_run_export', nonce: nonce }).done(function(res) {
+                        if ( res && res.success ) {
+                            $('#rr-log').prepend('<div style="color:green;">' + res.data + '</div>');
+                            startProcessing();
+                        } else {
+                            const msg = ( res && res.data ) ? res.data : 'Pre-run export failed.';
+                            $('#rr-log').prepend('<div style="color:#b32d2e;">Aborting: ' + msg + '</div>');
+                        }
+                    }).fail(function() {
+                        $('#rr-log').prepend('<div style="color:#b32d2e;">Aborting: pre-run export request failed.</div>');
+                    });
+                <?php else : ?>
+                    startProcessing();
+                <?php endif; ?>
             <?php endif; ?>
         });
         </script>
