@@ -23,6 +23,10 @@ if ( ! defined( 'TIMU_REVISION_REAPER_VERSION' ) ) {
 
 require_once __DIR__ . '/includes/class-exporter.php';
 
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+    require_once __DIR__ . '/includes/class-cli.php';
+}
+
 /**
  * Class TIMU_Revision_Reaper
  * Handles database cleanup for revisions, trash, and spam with automated scheduling.
