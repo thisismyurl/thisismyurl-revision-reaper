@@ -69,11 +69,19 @@ class TIMU_Revision_Reaper {
         
         foreach ( $items as $item ) {
             if ( 'trash' === $item['type'] ) {
-                wp_delete_post( $item['id'], true );
-                $log[] = "Deleted Trashed Post #{$item['id']}";
+                // Non-destructive: delegate to WP's trash lifecycle. WP itself
+                // empties trash items older than EMPTY_TRASH_DAYS via the
+                // wp_scheduled_delete cron — we never force-delete here.
+                if ( ! self::trash_post_eligible_for_purge( $item['id'] ) ) {
+                    continue;
+                }
+                wp_delete_post( $item['id'], false );
+                $log[] = "Trashed Post #{$item['id']} purged (older than EMPTY_TRASH_DAYS)";
             } elseif ( 'spam' === $item['type'] ) {
-                wp_delete_comment( $item['id'], true );
-                $log[] = "Deleted Spam Comment #{$item['id']}";
+                // Non-destructive: trash spam comments. Site owner can still
+                // recover from the Comments > Trash list before WP empties it.
+                wp_trash_comment( $item['id'] );
+                $log[] = "Spam Comment #{$item['id']} moved to comment trash";
             } else {
                 $revisions = wp_get_post_revisions( $item['id'] );
                 $to_remove = array_slice( $revisions, $settings['limit'] );
@@ -97,6 +105,35 @@ class TIMU_Revision_Reaper {
             $message = "The scheduled database cleanup has finished.\n\nItems Processed:\n" . ( ! empty( $log ) ? implode( "\n", $log ) : "No items required cleaning." );
             wp_mail( $email, $subject, $message );
         }
+    }
+
+    /**
+     * Whether a trashed post has lived in trash long enough to be purged.
+     *
+     * Honours the EMPTY_TRASH_DAYS constant — same rule WP core uses in
+     * wp_scheduled_delete(). When EMPTY_TRASH_DAYS is 0 trash is disabled and
+     * we never purge; when it's missing/unset we fall back to WP's 30-day
+     * default. Only the post's own _wp_trash_meta_time is consulted.
+     *
+     * @param int $post_id Post ID to inspect.
+     * @return bool True when the post is older than EMPTY_TRASH_DAYS.
+     */
+    public static function trash_post_eligible_for_purge( $post_id ) {
+        $days = defined( 'EMPTY_TRASH_DAYS' ) ? (int) EMPTY_TRASH_DAYS : 30;
+
+        if ( $days <= 0 ) {
+            // Trash is disabled site-wide; never purge from a "trash" worker.
+            return false;
+        }
+
+        $trashed_at = (int) get_post_meta( $post_id, '_wp_trash_meta_time', true );
+
+        if ( $trashed_at <= 0 ) {
+            // No trash timestamp — be conservative, don't purge.
+            return false;
+        }
+
+        return ( time() - $trashed_at ) >= ( $days * DAY_IN_SECONDS );
     }
 
     /**
@@ -152,12 +189,28 @@ class TIMU_Revision_Reaper {
                 wp_send_json_success( sprintf( __( 'Reaped revisions for Post #%d', 'thisismyurl-revision-reaper' ), $id ) );
                 break;
             case 'trash':
-                wp_delete_post( $id, true );
-                wp_send_json_success( sprintf( __( 'Deleted Trashed Post #%d', 'thisismyurl-revision-reaper' ), $id ) );
+                if ( ! self::trash_post_eligible_for_purge( $id ) ) {
+                    wp_send_json_success( sprintf(
+                        /* translators: %d: post ID */
+                        esc_html__( 'Skipped Trashed Post #%d (not yet older than EMPTY_TRASH_DAYS)', 'thisismyurl-revision-reaper' ),
+                        $id
+                    ) );
+                    break;
+                }
+                wp_delete_post( $id, false );
+                wp_send_json_success( sprintf(
+                    /* translators: %d: post ID */
+                    esc_html__( 'Purged Trashed Post #%d', 'thisismyurl-revision-reaper' ),
+                    $id
+                ) );
                 break;
             case 'spam':
-                wp_delete_comment( $id, true );
-                wp_send_json_success( sprintf( __( 'Deleted Spam Comment #%d', 'thisismyurl-revision-reaper' ), $id ) );
+                wp_trash_comment( $id );
+                wp_send_json_success( sprintf(
+                    /* translators: %d: comment ID */
+                    esc_html__( 'Moved Spam Comment #%d to comment trash', 'thisismyurl-revision-reaper' ),
+                    $id
+                ) );
                 break;
         }
         wp_send_json_error();
