@@ -108,6 +108,46 @@ class TIMU_Revision_Reaper {
     }
 
     /**
+     * Validate a YYYY-MM-DD date string strictly.
+     *
+     * @param string $date Date string from $_POST.
+     * @return bool True when the input is a real Gregorian date in ISO form.
+     */
+    public static function validate_iso_date( $date ) {
+        if ( ! is_string( $date ) || 1 !== preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
+            return false;
+        }
+        $parts = explode( '-', $date );
+        return checkdate( (int) $parts[1], (int) $parts[2], (int) $parts[0] );
+    }
+
+    /**
+     * Validate a HH:MM (24-hour) time string strictly.
+     *
+     * @param string $time Time string from $_POST.
+     * @return bool True when the input is a real 24h time.
+     */
+    public static function validate_iso_time( $time ) {
+        return is_string( $time ) && 1 === preg_match( '/^([01]\d|2[0-3]):[0-5]\d$/', $time );
+    }
+
+    /**
+     * Convert a site-local "Y-m-d H:i" string to a UTC timestamp.
+     *
+     * @param string $local Site-local datetime string.
+     * @return int|false UTC timestamp, or false on failure.
+     */
+    public static function parse_site_local_to_utc( $local ) {
+        try {
+            $tz = wp_timezone();
+            $dt = new DateTimeImmutable( $local, $tz );
+            return $dt->getTimestamp();
+        } catch ( Exception $e ) {
+            return false;
+        }
+    }
+
+    /**
      * Whether a trashed post has lived in trash long enough to be purged.
      *
      * Honours the EMPTY_TRASH_DAYS constant — same rule WP core uses in
@@ -235,27 +275,50 @@ class TIMU_Revision_Reaper {
      * Render Admin Dashboard.
      */
     public static function render_admin_page() {
-        // Handle Persistent Save Settings & Schedule
+        // Capability gate first — nothing in this view is safe for non-admins.
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( esc_html__( 'You do not have permission to manage Revision Reaper.', 'thisismyurl-revision-reaper' ) );
+        }
+
+        // Handle Persistent Save Settings & Schedule.
         if ( isset( $_POST['rr_save_settings'] ) ) {
-            update_option( 'timu_rr_limit', absint( $_POST['rev_limit'] ) );
+            // Nonce + capability gate. Both are required for any state change.
+            check_admin_referer( 'timu_rr_save_settings', 'timu_rr_settings_nonce' );
+
+            if ( ! current_user_can( 'manage_options' ) ) {
+                wp_die( esc_html__( 'You do not have permission to update these settings.', 'thisismyurl-revision-reaper' ) );
+            }
+
+            update_option( 'timu_rr_limit', absint( wp_unslash( $_POST['rev_limit'] ?? 3 ) ) );
             update_option( 'timu_rr_auto_trash', isset( $_POST['include_trash'] ) ? 1 : 0 );
             update_option( 'timu_rr_auto_spam', isset( $_POST['include_spam'] ) ? 1 : 0 );
-            update_option( 'timu_rr_report_email', sanitize_email( $_POST['report_email'] ) );
-            
-            // Automation persistent setting
+            update_option( 'timu_rr_report_email', sanitize_email( wp_unslash( $_POST['report_email'] ?? '' ) ) );
+
+            // Automation persistent setting.
             $enable_automation = isset( $_POST['enable_schedule'] ) ? 1 : 0;
             update_option( 'timu_rr_enable_automation', $enable_automation );
-            
-            // Meta display settings
-            update_option( 'timu_rr_schedule_date', sanitize_text_field( $_POST['schedule_date'] ) );
-            update_option( 'timu_rr_schedule_time', sanitize_text_field( $_POST['schedule_time'] ) );
-            update_option( 'timu_rr_schedule_recurrence', sanitize_text_field( $_POST['schedule_recurrence'] ) );
+
+            // Validate schedule_date as YYYY-MM-DD; reject anything else.
+            $raw_date     = isset( $_POST['schedule_date'] ) ? sanitize_text_field( wp_unslash( $_POST['schedule_date'] ) ) : '';
+            $raw_time     = isset( $_POST['schedule_time'] ) ? sanitize_text_field( wp_unslash( $_POST['schedule_time'] ) ) : '';
+            $valid_date   = self::validate_iso_date( $raw_date ) ? $raw_date : wp_date( 'Y-m-d' );
+            $valid_time   = self::validate_iso_time( $raw_time ) ? $raw_time : '00:00';
+
+            // Whitelist recurrence against actually-registered cron schedules.
+            $allowed_recurrences = array_keys( wp_get_schedules() );
+            $raw_recurrence      = isset( $_POST['schedule_recurrence'] ) ? sanitize_key( wp_unslash( $_POST['schedule_recurrence'] ) ) : 'weekly';
+            $valid_recurrence    = in_array( $raw_recurrence, $allowed_recurrences, true ) ? $raw_recurrence : 'weekly';
+
+            update_option( 'timu_rr_schedule_date', $valid_date );
+            update_option( 'timu_rr_schedule_time', $valid_time );
+            update_option( 'timu_rr_schedule_recurrence', $valid_recurrence );
 
             wp_clear_scheduled_hook( 'timu_rr_scheduled_cleanup' );
             if ( $enable_automation ) {
-                $timestamp = strtotime( $_POST['schedule_date'] . ' ' . $_POST['schedule_time'] );
+                // Treat the date+time as site-local; convert to UTC for cron.
+                $timestamp = self::parse_site_local_to_utc( $valid_date . ' ' . $valid_time );
                 if ( $timestamp ) {
-                    wp_schedule_event( $timestamp, $_POST['schedule_recurrence'], 'timu_rr_scheduled_cleanup' );
+                    wp_schedule_event( $timestamp, $valid_recurrence, 'timu_rr_scheduled_cleanup' );
                 }
             }
             echo '<div class="updated"><p>' . esc_html__( 'Settings and Schedule updated successfully.', 'thisismyurl-revision-reaper' ) . '</p></div>';
@@ -290,6 +353,7 @@ class TIMU_Revision_Reaper {
                     <div id="post-body-content">
                         
                         <form method="post">
+                        <?php wp_nonce_field( 'timu_rr_save_settings', 'timu_rr_settings_nonce' ); ?>
                         <div class="postbox">
                             <h2 class="hndle"><span><?php esc_html_e( 'Configuration & Automation', 'thisismyurl-revision-reaper' ); ?></span></h2>
                             <div class="inside">
@@ -329,9 +393,19 @@ class TIMU_Revision_Reaper {
                                         <th scope="row"><?php esc_html_e( 'Recurrence Interval', 'thisismyurl-revision-reaper' ); ?></th>
                                         <td>
                                             <select name="schedule_recurrence">
-                                                <option value="daily" <?php selected( $saved_recurrence, 'daily' ); ?>><?php _e('Daily'); ?></option>
-                                                <option value="weekly" <?php selected( $saved_recurrence, 'weekly' ); ?>><?php _e('Weekly'); ?></option>
-                                                <option value="monthly" <?php selected( $saved_recurrence, 'monthly' ); ?>><?php _e('Monthly'); ?></option>
+                                                <?php
+                                                // Render exactly the cron schedules WP knows about right now.
+                                                // Falls back to hourly/daily/twicedaily/weekly which core ships.
+                                                foreach ( wp_get_schedules() as $sched_key => $sched ) {
+                                                    $label = isset( $sched['display'] ) ? $sched['display'] : $sched_key;
+                                                    printf(
+                                                        '<option value="%1$s" %2$s>%3$s</option>',
+                                                        esc_attr( $sched_key ),
+                                                        selected( $saved_recurrence, $sched_key, false ),
+                                                        esc_html( $label )
+                                                    );
+                                                }
+                                                ?>
                                             </select>
                                         </td>
                                     </tr>
