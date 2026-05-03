@@ -197,32 +197,181 @@ class TIMU_Revision_Reaper {
     }
 
     /**
-     * Scan database for eligible items using WP_Query.
+     * Scan database for eligible items using paged WP_Query.
+     *
+     * Hard caps are applied so a site with 100k posts doesn't trip an OOM or
+     * a wpdb timeout on a single render. Operators who want everything in
+     * one pass should use the WP-CLI command, which streams batches.
+     *
+     * @param array $settings { limit, include_trash, include_spam }.
+     * @param array $caps     Optional overrides: { batch_size, max_items, post_types }.
+     * @return array
      */
-    public static function get_eligible_items( $settings ) {
-        $items = array();
-        $posts = new WP_Query( array( 'post_type' => 'any', 'post_status' => 'any', 'posts_per_page' => -1, 'fields' => 'ids', 'no_found_rows' => true ) );
+    public static function get_eligible_items( $settings, $caps = array() ) {
+        $defaults = array(
+            // Per-query batch size. 200 keeps wp_get_post_revisions() loops bounded.
+            'batch_size' => 200,
+            // Total items returned across all types in one call.
+            'max_items'  => 1000,
+            // Public + private CPTs only. 'any' silently includes attachments
+            // and revisions and is never what we want here.
+            'post_types' => self::get_target_post_types(),
+        );
+        $caps = array_merge( $defaults, $caps );
 
-        if ( ! empty( $posts->posts ) ) {
-            foreach ( $posts->posts as $post_id ) {
+        $items     = array();
+        $remaining = (int) $caps['max_items'];
+
+        // 1. Posts whose revision count exceeds the keep limit.
+        $paged    = 1;
+        $rev_done = false;
+        while ( ! $rev_done && $remaining > 0 ) {
+            $q = new WP_Query( array(
+                'post_type'              => $caps['post_types'],
+                'post_status'            => array( 'publish', 'future', 'draft', 'pending', 'private' ),
+                'posts_per_page'         => $caps['batch_size'],
+                'paged'                  => $paged,
+                'fields'                 => 'ids',
+                'no_found_rows'          => true,
+                'update_post_meta_cache' => false,
+                'update_post_term_cache' => false,
+                'orderby'                => 'ID',
+                'order'                  => 'ASC',
+            ) );
+
+            if ( empty( $q->posts ) ) {
+                break;
+            }
+
+            foreach ( $q->posts as $post_id ) {
                 $revisions = wp_get_post_revisions( $post_id, array( 'fields' => 'ids' ) );
-                if ( count( $revisions ) > $settings['limit'] ) {
-                    $items[] = array( 'id' => $post_id, 'type' => 'revision' );
+                if ( count( $revisions ) > (int) $settings['limit'] ) {
+                    $items[]    = array( 'id' => (int) $post_id, 'type' => 'revision' );
+                    $remaining--;
+                    if ( $remaining <= 0 ) {
+                        $rev_done = true;
+                        break;
+                    }
                 }
+            }
+
+            if ( count( $q->posts ) < $caps['batch_size'] ) {
+                break;
+            }
+            $paged++;
+        }
+
+        // 2. Trashed posts. Same chunking.
+        if ( ! empty( $settings['include_trash'] ) && $remaining > 0 ) {
+            $paged = 1;
+            while ( $remaining > 0 ) {
+                $trash = get_posts( array(
+                    'post_status'            => 'trash',
+                    'posts_per_page'         => $caps['batch_size'],
+                    'paged'                  => $paged,
+                    'fields'                 => 'ids',
+                    'post_type'              => $caps['post_types'],
+                    'no_found_rows'          => true,
+                    'update_post_meta_cache' => false,
+                    'update_post_term_cache' => false,
+                    'orderby'                => 'ID',
+                    'order'                  => 'ASC',
+                ) );
+                if ( empty( $trash ) ) {
+                    break;
+                }
+                foreach ( $trash as $id ) {
+                    $items[] = array( 'id' => (int) $id, 'type' => 'trash' );
+                    $remaining--;
+                    if ( $remaining <= 0 ) {
+                        break 2;
+                    }
+                }
+                if ( count( $trash ) < $caps['batch_size'] ) {
+                    break;
+                }
+                $paged++;
             }
         }
 
-        if ( $settings['include_trash'] ) {
-            $trash = get_posts( array( 'post_status' => 'trash', 'posts_per_page' => -1, 'fields' => 'ids', 'post_type' => 'any' ) );
-            foreach ( $trash as $id ) { $items[] = array( 'id' => $id, 'type' => 'trash' ); }
-        }
-
-        if ( $settings['include_spam'] ) {
-            $spam = get_comments( array( 'status' => 'spam', 'fields' => 'ids' ) );
-            foreach ( $spam as $id ) { $items[] = array( 'id' => $id, 'type' => 'spam' ); }
+        // 3. Spam comments — split auto vs manual; only auto is reaped.
+        if ( ! empty( $settings['include_spam'] ) && $remaining > 0 ) {
+            $offset = 0;
+            while ( $remaining > 0 ) {
+                $spam = get_comments( array(
+                    'status' => 'spam',
+                    'fields' => 'ids',
+                    'number' => $caps['batch_size'],
+                    'offset' => $offset,
+                    'orderby' => 'comment_ID',
+                    'order'  => 'ASC',
+                ) );
+                if ( empty( $spam ) ) {
+                    break;
+                }
+                foreach ( $spam as $comment_id ) {
+                    if ( ! self::is_auto_spam( (int) $comment_id ) ) {
+                        // Manual spam — operator marked this; respect that
+                        // signal and never auto-purge.
+                        continue;
+                    }
+                    $items[] = array( 'id' => (int) $comment_id, 'type' => 'spam' );
+                    $remaining--;
+                    if ( $remaining <= 0 ) {
+                        break 2;
+                    }
+                }
+                if ( count( $spam ) < $caps['batch_size'] ) {
+                    break;
+                }
+                $offset += $caps['batch_size'];
+            }
         }
 
         return $items;
+    }
+
+    /**
+     * Public+private custom post types this plugin is willing to scan.
+     * Excludes attachments and revisions explicitly — those have their own
+     * lifecycles and are never what we mean by "scan for old revisions."
+     *
+     * @return string[]
+     */
+    public static function get_target_post_types() {
+        $types = get_post_types( array( 'show_ui' => true ), 'names' );
+        unset( $types['attachment'], $types['revision'], $types['nav_menu_item'] );
+        return array_values( $types );
+    }
+
+    /**
+     * Distinguish Akismet auto-spam from manually-marked spam.
+     *
+     * Akismet stores akismet_result=spam and a history meta entry on
+     * comments it flags. Anything without that signature was marked spam
+     * by a human moderator and we don't auto-purge it.
+     *
+     * @param int $comment_id Comment ID.
+     * @return bool True if this looks like Akismet auto-spam.
+     */
+    public static function is_auto_spam( $comment_id ) {
+        $akismet_result = get_comment_meta( $comment_id, 'akismet_result', true );
+        if ( 'true' === $akismet_result || 'spam' === $akismet_result ) {
+            return true;
+        }
+        $history = get_comment_meta( $comment_id, 'akismet_as_submitted', true );
+        if ( ! empty( $history ) ) {
+            return true;
+        }
+        // No Akismet on the site at all? Treat as auto so the plugin remains
+        // useful — operator opted into "include spam" knowing what that meant.
+        if ( ! function_exists( 'is_plugin_active' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        if ( ! is_plugin_active( 'akismet/akismet.php' ) && ! function_exists( 'akismet_init' ) ) {
+            return true;
+        }
+        return false;
     }
 
     /**
