@@ -1,10 +1,10 @@
-=== Revision Reaper by This Is My URL ===
+=== Revision Reaper ===
 Contributors: thisismyurl
 Tags: revisions, database cleanup, performance, wp cron, maintenance
-Requires at least: 6.0
-Tested up to: 6.9
-Requires PHP: 7.4
-Stable tag: 1.6365
+Requires at least: 6.4
+Tested up to: 6.8
+Requires PHP: 8.1
+Stable tag: 0.6123
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Plugin URI: https://thisismyurl.com/thisismyurl-revision-reaper/
@@ -72,7 +72,7 @@ If they're helpful, here are genuine ways to support the work:
 
 = I found a bug or have a feature idea =
 
-* **File an issue on GitHub:** Visit https://github.com/thisismyurl/[plugin-name]/issues and include your WordPress and PHP version.
+* **File an issue on GitHub:** Visit https://github.com/thisismyurl/thisismyurl-revision-reaper/issues and include your WordPress and PHP version.
 * **Start a discussion:** Use the Discussions tab on GitHub for questions or ideas.
 
 = I want to contribute code =
@@ -90,10 +90,35 @@ I review PRs thoughtfully and appreciate well-tested contributions. Contributing
 
 == Changelog ==
 
+= 0.6123 =
+* Security: added nonce + capability checks on the settings POST handler.
+* Security: whitelist `schedule_recurrence` against `wp_get_schedules()` before passing to `wp_schedule_event`.
+* Security: validate `schedule_date` strictly as ISO date before passing to scheduler.
+* Security: replaced GET-trigger run with admin-post POST + run-intent transient.
+* Safety: trash (don't force-delete) trashed posts; respect EMPTY_TRASH_DAYS.
+* Safety: trash (don't force-delete) spam comments; recoverable from comment trash.
+* Safety: pre-delete JSON snapshot to `uploads/revision-reaper/exports/` with deny-all .htaccess and 30-day retention.
+* Safety: separate Akismet auto-spam from manually-marked spam; only auto-spam is reaped.
+* Performance: chunked WP_Query (batch 200, cap 1000) replacing `posts_per_page=-1, post_type=any`.
+* Feature: `wp revision-reaper run` WP-CLI command with `--dry-run`, `--limit`, `--include`.
+* Feature: Site Health card surfacing revision/trash/spam/transient counts.
+* Feature: implemented expired-transient cleanup that the readme had advertised.
+* Quality: OPTIMIZE TABLE restricted to MyISAM/Aria, identifiers via `%i` placeholder.
+* Quality: text-domain coverage on every user-facing string; per-arg escape on printf.
+* Quality: dropped dead `wp_send_json_error()` after switch.
+* Quality: enqueued admin script properly instead of inline `<script>`.
+* Maintenance: bumped Requires at least to 6.4, Requires PHP to 8.1, Tested up to 6.8.
+* Maintenance: aligned `@package` annotation with sibling plugins (`Thisismyurl_*`).
+* Docs: created CHANGELOG.md referenced by SECURITY.md.
+* Docs: filled `[plugin-name]` placeholder in readme.txt.
+
 = 1.6365 =
 * Documentation and profile alignment update.
 
 == Upgrade Notice ==
+
+= 0.6123 =
+Security and safety release. Adds nonce/capability checks to settings, switches force-delete to trash, adds pre-delete JSON snapshots, and ships the previously-advertised transient cleanup. Recommended for all installs.
 
 = 1.6365 =
 Maintenance and documentation update.

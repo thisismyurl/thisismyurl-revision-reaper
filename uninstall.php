@@ -5,7 +5,7 @@
  * This file runs when the plugin is deleted via the WordPress Admin.
  * It removes all persistent settings and clears the automated schedule.
  *
- * @package TIMU_Revision_Reaper
+ * @package Thisismyurl_Revision_Reaper
  */
 
 // If uninstall not called from WordPress, exit.
