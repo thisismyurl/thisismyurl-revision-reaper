@@ -1,0 +1,38 @@
+# Files and directories that should NOT ship to the .org SVN trunk.
+# Used by `wp dist-archive` and the WP-CLI dist-archive command.
+
+# Version control
+.git
+.gitignore
+.gitattributes
+.github
+
+# Editor / OS noise
+.DS_Store
+.idea
+.vscode
+*.swp
+*.swo
+*.bak
+
+# Project docs that aren't user-facing
+README.md
+CONTRIBUTING.md
+SECURITY.md
+CHANGELOG.md
+
+# Build / dependency manifests
+node_modules
+composer.json
+composer.lock
+package.json
+package-lock.json
+phpcs.xml.dist
+phpstan.neon
+.distignore
+
+# Tests / fixtures
+tests
+phpunit.xml
+phpunit.xml.dist
+.phpunit.result.cache
