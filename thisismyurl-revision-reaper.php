@@ -38,6 +38,7 @@ class TIMU_Revision_Reaper {
         add_action( 'wp_ajax_timu_rr_optimize_db', array( __CLASS__, 'ajax_optimize_db' ) );
         add_action( 'wp_ajax_timu_rr_pre_run_export', array( __CLASS__, 'ajax_pre_run_export' ) );
         add_action( 'admin_post_timu_rr_run', array( __CLASS__, 'handle_run_post' ) );
+        add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_assets' ) );
         add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), array( __CLASS__, 'add_plugin_action_links' ) );
         
         // Automated schedule hook
@@ -52,6 +53,67 @@ class TIMU_Revision_Reaper {
             'revision-reaper',
             array( __CLASS__, 'render_admin_page' )
         );
+    }
+
+    /**
+     * Enqueue the admin runner script — only on our own Tools page.
+     *
+     * Uses wp_localize_script() to pass the nonce, items list, run mode,
+     * and translatable strings. Avoids inline <script> tags entirely.
+     *
+     * @param string $hook_suffix Current admin page hook.
+     * @return void
+     */
+    public static function enqueue_admin_assets( $hook_suffix ) {
+        if ( 'tools_page_revision-reaper' !== $hook_suffix ) {
+            return;
+        }
+        if ( ! current_user_can( 'manage_options' ) ) {
+            return;
+        }
+
+        wp_enqueue_script(
+            'timu-revision-reaper-admin',
+            plugins_url( 'assets/js/admin.js', __FILE__ ),
+            array( 'jquery' ),
+            TIMU_REVISION_REAPER_VERSION,
+            true
+        );
+
+        // Recompute the items list using the same transient gating the
+        // page render uses so the script and the page see the same state.
+        $user_id        = get_current_user_id();
+        $run_intent_key = 'timu_rr_run_intent_' . $user_id;
+        $run_intent     = isset( $_GET['reap'] ) ? get_transient( $run_intent_key ) : false; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $items          = array();
+        $is_dry_run     = false;
+
+        if ( $run_intent ) {
+            $settings   = array(
+                'limit'         => (int) get_option( 'timu_rr_limit', 3 ),
+                'include_trash' => (int) get_option( 'timu_rr_auto_trash', 0 ),
+                'include_spam'  => (int) get_option( 'timu_rr_auto_spam', 0 ),
+            );
+            $items      = self::get_eligible_items( $settings );
+            $is_dry_run = ( 'dry' === $run_intent );
+        }
+
+        wp_localize_script( 'timu-revision-reaper-admin', 'timuRevisionReaper', array(
+            'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
+            'nonce'     => wp_create_nonce( 'timu_rr_nonce' ),
+            'items'     => $items,
+            'isDryRun'  => $is_dry_run,
+            'limit'     => (int) get_option( 'timu_rr_limit', 3 ),
+            'i18n'      => array(
+                'confirmBackup'       => __( 'Please confirm the backup acknowledgement before running a live cleanup.', 'thisismyurl-revision-reaper' ),
+                'confirmStart'        => __( 'Start live database cleanup? Items will be exported to JSON, then trashed.', 'thisismyurl-revision-reaper' ),
+                'cleanupFinished'     => __( 'Cleanup finished. Optimizing tables...', 'thisismyurl-revision-reaper' ),
+                'simulationComplete'  => __( 'Simulation complete. No changes made.', 'thisismyurl-revision-reaper' ),
+                'writingExport'       => __( 'Writing pre-run export...', 'thisismyurl-revision-reaper' ),
+                'exportFailed'        => __( 'Pre-run export failed.', 'thisismyurl-revision-reaper' ),
+                'exportRequestFailed' => __( 'Aborting: pre-run export request failed.', 'thisismyurl-revision-reaper' ),
+            ),
+        ) );
     }
 
     public static function add_plugin_action_links( $links ) {
@@ -523,7 +585,9 @@ class TIMU_Revision_Reaper {
                 ) );
                 break;
         }
-        wp_send_json_error();
+        // Switch covers every whitelisted type; reaching this branch means
+        // a switch case forgot to send a response — kept defensively.
+        wp_send_json_error( esc_html__( 'No handler matched the requested item type.', 'thisismyurl-revision-reaper' ), 500 );
     }
 
     /**
@@ -667,7 +731,7 @@ class TIMU_Revision_Reaper {
         $report_email        = get_option( 'timu_rr_report_email', get_option( 'admin_email' ) );
         $automation_enabled  = get_option( 'timu_rr_enable_automation', 0 );
         $next_run            = wp_next_scheduled( 'timu_rr_scheduled_cleanup' );
-        $saved_date          = get_option( 'timu_rr_schedule_date', date('Y-m-d') );
+        $saved_date          = get_option( 'timu_rr_schedule_date', wp_date( 'Y-m-d' ) );
         $saved_time          = get_option( 'timu_rr_schedule_time', '00:00' );
         $saved_recurrence    = get_option( 'timu_rr_schedule_recurrence', 'weekly' );
 
@@ -824,87 +888,11 @@ class TIMU_Revision_Reaper {
             </div>
         </div>
 
-        <script>
-        jQuery(document).ready(function($) {
-            const nonce = '<?php echo esc_js( wp_create_nonce( "timu_rr_nonce" ) ); ?>';
-
-            // Live-run button stays disabled until the operator ticks the
-            // backup-confirm checkbox. The form itself also re-checks on
-            // submit in case the disabled attr is removed in DevTools.
-            $('#rr-backup-confirm').on('change', function() {
-                $('#rr-live-run-btn').prop('disabled', ! this.checked);
-            });
-
-            $('#rr-live-run-form').on('submit', function(e) {
-                if ( ! $('#rr-backup-confirm').is(':checked') ) {
-                    e.preventDefault();
-                    alert('<?php echo esc_js( __( 'Please confirm the backup acknowledgement before running a live cleanup.', 'thisismyurl-revision-reaper' ) ); ?>');
-                    return false;
-                }
-                if ( ! confirm('<?php echo esc_js( __( 'Start live database cleanup? Items will be exported to JSON, then trashed.', 'thisismyurl-revision-reaper' ) ); ?>') ) {
-                    e.preventDefault();
-                    return false;
-                }
-                return true;
-            });
-
-            <?php if ( ! empty( $items ) ) : ?>
-                const items = <?php echo wp_json_encode( $items ); ?>;
-                const total = items.length;
-                let completed = 0;
-
-                const startProcessing = () => {
-                    const processNext = () => {
-                        if (items.length === 0) {
-                            <?php if (!$is_dry_run_active) : ?>
-                                $('#rr-log').prepend('<div><strong>Cleanup finished. Optimizing tables...</strong></div>');
-                                $.post(ajaxurl, { action: 'timu_rr_optimize_db', nonce: nonce }).done(function(res) {
-                                    $('#rr-log').prepend('<div style="color:green;">' + res.data + '</div>');
-                                });
-                            <?php else : ?>
-                                 $('#rr-log').prepend('<div><strong>Simulation complete. No changes made.</strong></div>');
-                            <?php endif; ?>
-                            return;
-                        }
-
-                        const item = items.shift();
-                        $.post(ajaxurl, {
-                            action: 'timu_rr_purge_item',
-                            item_id: item.id,
-                            item_type: item.type,
-                            limit: <?php echo (int) $current_limit; ?>,
-                            dry_run: '<?php echo $is_dry_run_active ? 'true' : 'false'; ?>',
-                            nonce: nonce
-                        }).done(function(res) {
-                            completed++;
-                            $('#rr-progress-bar').css('width', Math.round((completed / total) * 100) + '%');
-                            $('#rr-log').prepend('<div>' + res.data + '</div>');
-                            processNext();
-                        });
-                    };
-                    processNext();
-                };
-
-                <?php if ( ! $is_dry_run_active ) : ?>
-                    // Live run: snapshot before we touch anything.
-                    $('#rr-log').prepend('<div><strong>Writing pre-run export...</strong></div>');
-                    $.post(ajaxurl, { action: 'timu_rr_pre_run_export', nonce: nonce }).done(function(res) {
-                        if ( res && res.success ) {
-                            $('#rr-log').prepend('<div style="color:green;">' + res.data + '</div>');
-                            startProcessing();
-                        } else {
-                            const msg = ( res && res.data ) ? res.data : 'Pre-run export failed.';
-                            $('#rr-log').prepend('<div style="color:#b32d2e;">Aborting: ' + msg + '</div>');
-                        }
-                    }).fail(function() {
-                        $('#rr-log').prepend('<div style="color:#b32d2e;">Aborting: pre-run export request failed.</div>');
-                    });
-                <?php else : ?>
-                    startProcessing();
-                <?php endif; ?>
-            <?php endif; ?>
-        });
-        </script>
+        <?php
+        // Runner JS is enqueued via admin_enqueue_scripts (see enqueue_admin_assets).
+        // No inline <script> here; the runner reads its bootstrap data from
+        // window.timuRevisionReaper which wp_localize_script() injects.
+        ?>
         <?php
     }
 }
