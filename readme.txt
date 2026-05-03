@@ -56,7 +56,7 @@ No. It targets revisions, trash, spam/unapproved comments, and expired transient
 Yes. Configure interval and run size in plugin settings.
 
 = Is this suitable for multisite? =
-Use per-site review and test in staging before broad rollout.
+The plugin loads and runs per-site on multisite (not network-activated as a single switch). Each site keeps its own settings, schedule, and pre-delete export directory under its own `wp-content/uploads/`. Multisite is not part of the formal test matrix yet — please test in a staging network before rolling to production. Network-wide reaping (one cron pass that walks every site) is on the roadmap and tracked on the GitHub issue list.
 
 == Support, Contributing & Sponsorship ==
 
