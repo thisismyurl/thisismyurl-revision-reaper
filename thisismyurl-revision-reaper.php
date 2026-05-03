@@ -22,6 +22,7 @@ if ( ! defined( 'TIMU_REVISION_REAPER_VERSION' ) ) {
 }
 
 require_once __DIR__ . '/includes/class-exporter.php';
+require_once __DIR__ . '/includes/class-site-health.php';
 
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
     require_once __DIR__ . '/includes/class-cli.php';
