@@ -381,13 +381,26 @@ class TIMU_Revision_Reaper {
         check_ajax_referer( 'timu_rr_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Unauthorized' ); }
 
-        $id         = absint( $_POST['item_id'] );
-        $type       = sanitize_text_field( $_POST['item_type'] );
-        $limit      = absint( $_POST['limit'] );
-        $is_dry_run = isset( $_POST['dry_run'] ) && $_POST['dry_run'] === 'true';
+        $id         = absint( $_POST['item_id'] ?? 0 );
+        $type       = isset( $_POST['item_type'] ) ? sanitize_key( wp_unslash( $_POST['item_type'] ) ) : '';
+        $limit      = absint( $_POST['limit'] ?? 3 );
+        $is_dry_run = isset( $_POST['dry_run'] ) && 'true' === $_POST['dry_run'];
+
+        // Whitelist item types — anything else is rejected.
+        if ( ! in_array( $type, array( 'revision', 'trash', 'spam' ), true ) ) {
+            wp_send_json_error( esc_html__( 'Invalid item type.', 'thisismyurl-revision-reaper' ), 400 );
+        }
+        if ( $id <= 0 ) {
+            wp_send_json_error( esc_html__( 'Invalid item ID.', 'thisismyurl-revision-reaper' ), 400 );
+        }
 
         if ( $is_dry_run ) {
-             wp_send_json_success( sprintf( __( '[DRY RUN] Would process item #%d (%s)', 'thisismyurl-revision-reaper' ), $id, $type ) );
+            wp_send_json_success( sprintf(
+                /* translators: 1: numeric item ID, 2: item type slug */
+                esc_html__( '[DRY RUN] Would process item #%1$d (%2$s)', 'thisismyurl-revision-reaper' ),
+                $id,
+                esc_html( $type )
+            ) );
         }
 
         switch ( $type ) {
@@ -395,7 +408,11 @@ class TIMU_Revision_Reaper {
                 $revisions = wp_get_post_revisions( $id );
                 $to_remove = array_slice( $revisions, $limit );
                 foreach ( $to_remove as $rev ) { wp_delete_post_revision( $rev->ID ); }
-                wp_send_json_success( sprintf( __( 'Reaped revisions for Post #%d', 'thisismyurl-revision-reaper' ), $id ) );
+                wp_send_json_success( sprintf(
+                    /* translators: %d: post ID */
+                    esc_html__( 'Reaped revisions for Post #%d', 'thisismyurl-revision-reaper' ),
+                    $id
+                ) );
                 break;
             case 'trash':
                 if ( ! self::trash_post_eligible_for_purge( $id ) ) {
@@ -585,7 +602,13 @@ class TIMU_Revision_Reaper {
             <h1>
                 <?php esc_html_e( 'Revision Reaper', 'thisismyurl-revision-reaper' ); ?>
                 <small style="font-size: 0.5em; font-weight: normal; vertical-align: middle; margin-left: 10px; color: #646970;">
-                    <?php printf( esc_html__( 'by %s', 'thisismyurl-revision-reaper' ), 'thisismyurl' ); ?>
+                    <?php
+                    printf(
+                        /* translators: %s: brand name "This Is My URL" */
+                        esc_html__( 'by %s', 'thisismyurl-revision-reaper' ),
+                        esc_html__( 'This Is My URL', 'thisismyurl-revision-reaper' )
+                    );
+                    ?>
                 </small>
             </h1>
             <p><?php esc_html_e( 'Optimize performance by reaping revisions, trash, and spam using persistent settings.', 'thisismyurl-revision-reaper' ); ?></p>
@@ -619,7 +642,13 @@ class TIMU_Revision_Reaper {
                                             <input type="checkbox" name="enable_schedule" value="1" <?php checked( $automation_enabled ); ?>>
                                             <?php if ( $next_run ) : ?>
                                                 <p class="description" style="color:#2271b1; font-weight:bold;">
-                                                    <?php printf( esc_html__( 'Next Scheduled Run: %s', 'thisismyurl-revision-reaper' ), date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $next_run ) ); ?>
+                                                    <?php
+                                                    printf(
+                                                        /* translators: %s: human-readable next-run datetime in site timezone */
+                                                        esc_html__( 'Next Scheduled Run: %s', 'thisismyurl-revision-reaper' ),
+                                                        esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $next_run ) )
+                                                    );
+                                                    ?>
                                                 </p>
                                             <?php endif; ?>
                                         </td>
@@ -692,8 +721,8 @@ class TIMU_Revision_Reaper {
                             </div>
                         </div>
 
-                        <div id="reap-area" class="postbox" <?php echo empty($items) ? 'style="display:none;"' : ''; ?>>
-                            <h2 class="hndle"><span><?php echo $is_dry_run_active ? 'Simulation' : 'Live Activity'; ?> Log</span></h2>
+                        <div id="reap-area" class="postbox" <?php echo empty( $items ) ? 'style="display:none;"' : ''; ?>>
+                            <h2 class="hndle"><span><?php echo esc_html( $is_dry_run_active ? __( 'Simulation Log', 'thisismyurl-revision-reaper' ) : __( 'Live Activity Log', 'thisismyurl-revision-reaper' ) ); ?></span></h2>
                             <div class="inside">
                                 <div id="rr-progress-container" style="background:#f0f0f1; height:20px; border-radius:3px; border:1px solid #c3c4c7; margin-bottom:10px; overflow:hidden;">
                                     <div id="rr-progress-bar" style="background:#2271b1; height:100%; width:0%;"></div>
