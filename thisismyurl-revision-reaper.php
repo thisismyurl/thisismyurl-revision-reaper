@@ -112,11 +112,18 @@ class TIMU_Revision_Reaper {
             }
         }
         
-        // Final database optimization
-        global $wpdb;
-        $tables = $wpdb->get_results( "SHOW TABLES", ARRAY_N );
-        foreach ( $tables as $table ) {
-            $wpdb->query( "OPTIMIZE TABLE {$table[0]}" );
+        // Expired transients live in wp_options (or sitemeta on multisite).
+        // The plugin marketed transient cleanup but never implemented it.
+        $expired_transients = self::delete_expired_transients();
+        if ( $expired_transients > 0 ) {
+            $log[] = sprintf( 'Deleted %d expired transient pairs.', (int) $expired_transients );
+        }
+
+        // Final database optimization (MyISAM tables only — InnoDB rebuilds
+        // on OPTIMIZE which is wasteful on a maintenance pass).
+        $optimized = self::optimize_wp_tables();
+        if ( $optimized > 0 ) {
+            $log[] = sprintf( 'Optimized %d tables.', (int) $optimized );
         }
 
         // Send Email Report
@@ -125,6 +132,83 @@ class TIMU_Revision_Reaper {
             $message = "The scheduled database cleanup has finished.\n\nItems Processed:\n" . ( ! empty( $log ) ? implode( "\n", $log ) : "No items required cleaning." );
             wp_mail( $email, $subject, $message );
         }
+    }
+
+    /**
+     * Delete expired transients from wp_options (and sitemeta on multisite).
+     *
+     * WP core's delete_expired_transients() is the canonical implementation
+     * and we simply delegate to it — wrapping it here keeps the call site
+     * legible and lets us return a count for the run report.
+     *
+     * @return int Number of transient *pairs* (value + timeout) removed.
+     */
+    public static function delete_expired_transients() {
+        global $wpdb;
+
+        // Pre-count so we can report something meaningful. WP's helper
+        // returns void, so we measure the option-row delta ourselves.
+        $before = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->options}
+             WHERE option_name LIKE '\\_transient\\_timeout\\_%'
+                OR option_name LIKE '\\_site\\_transient\\_timeout\\_%'"
+        );
+
+        if ( function_exists( 'delete_expired_transients' ) ) {
+            delete_expired_transients( true );
+        }
+
+        $after = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->options}
+             WHERE option_name LIKE '\\_transient\\_timeout\\_%'
+                OR option_name LIKE '\\_site\\_transient\\_timeout\\_%'"
+        );
+
+        return max( 0, $before - $after );
+    }
+
+    /**
+     * OPTIMIZE TABLE the WordPress-owned tables only, skipping InnoDB.
+     *
+     * OPTIMIZE on InnoDB triggers a full table rebuild (ALGORITHM=COPY) which
+     * is wasteful as a maintenance task — InnoDB's own background cleanup
+     * already handles fragmentation. We restrict to MyISAM and Aria.
+     *
+     * @return int Number of tables optimized.
+     */
+    public static function optimize_wp_tables() {
+        global $wpdb;
+
+        $tables_to_check = $wpdb->tables( 'all' );
+        if ( empty( $tables_to_check ) ) {
+            return 0;
+        }
+
+        // information_schema lookup so we know each table's engine.
+        $placeholders = implode( ',', array_fill( 0, count( $tables_to_check ), '%s' ) );
+        $sql          = $wpdb->prepare(
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            "SELECT TABLE_NAME, ENGINE FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = %s AND TABLE_NAME IN ($placeholders)",
+            array_merge( array( DB_NAME ), $tables_to_check )
+        );
+        $rows = $wpdb->get_results( $sql ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+        if ( empty( $rows ) ) {
+            return 0;
+        }
+
+        $optimized = 0;
+        foreach ( $rows as $row ) {
+            $engine = strtoupper( (string) $row->ENGINE );
+            if ( ! in_array( $engine, array( 'MYISAM', 'ARIA' ), true ) ) {
+                continue;
+            }
+            // %i is WP 6.2+ for identifier quoting — uses backticks safely.
+            $wpdb->query( $wpdb->prepare( 'OPTIMIZE TABLE %i', $row->TABLE_NAME ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+            $optimized++;
+        }
+
+        return $optimized;
     }
 
     /**
@@ -504,18 +588,23 @@ class TIMU_Revision_Reaper {
     }
 
     /**
-     * AJAX: Optimize Database Tables.
+     * AJAX: Optimize Database Tables + clear expired transients.
      */
     public static function ajax_optimize_db() {
         check_ajax_referer( 'timu_rr_nonce', 'nonce' );
-        if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error(); }
-
-        global $wpdb;
-        $tables = $wpdb->get_results( "SHOW TABLES", ARRAY_N );
-        foreach ( $tables as $table ) {
-            $wpdb->query( "OPTIMIZE TABLE {$table[0]}" );
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( esc_html__( 'Unauthorized', 'thisismyurl-revision-reaper' ), 403 );
         }
-        wp_send_json_success( __( 'Database tables optimized.', 'thisismyurl-revision-reaper' ) );
+
+        $transients = self::delete_expired_transients();
+        $optimized  = self::optimize_wp_tables();
+
+        wp_send_json_success( sprintf(
+            /* translators: 1: number of tables optimized, 2: number of expired transient pairs deleted */
+            esc_html__( 'Optimized %1$d tables and removed %2$d expired transient pairs.', 'thisismyurl-revision-reaper' ),
+            (int) $optimized,
+            (int) $transients
+        ) );
     }
 
     /**
