@@ -1,0 +1,263 @@
+# Revision Reaper — Traduction canadienne-française
+# Copyright (C) 2026 Christopher Ross
+# This file is distributed under the same license as the Revision Reaper package.
+# Christopher Ross <hello@thisismyurl.com>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Revision Reaper 0.6123\n"
+"Report-Msgid-Bugs-To: https://github.com/thisismyurl/thisismyurl-revision-reaper/issues\n"
+"POT-Creation-Date: 2026-05-04 23:47+0000\n"
+"PO-Revision-Date: 2026-05-04 23:47+0000\n"
+"Last-Translator: Christopher Ross <hello@thisismyurl.com>\n"
+"Language-Team: French (Canada) <hello@thisismyurl.com>\n"
+"Language: fr_CA\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: thisismyurl-revision-reaper.php:56
+#: thisismyurl-revision-reaper.php:57
+#: thisismyurl-revision-reaper.php:775
+#: includes/class-site-health.php:69
+msgid "Revision Reaper"
+msgstr "Revision Reaper"
+
+#: thisismyurl-revision-reaper.php:114
+msgid "Please confirm the backup acknowledgement before running a live cleanup."
+msgstr "Veuillez confirmer l'accusé de réception de la sauvegarde avant de lancer un nettoyage en direct."
+
+#: thisismyurl-revision-reaper.php:115
+msgid "Start live database cleanup? Items will be exported to JSON, then trashed."
+msgstr "Lancer le nettoyage de la base de données en direct ? Les éléments seront exportés en JSON, puis mis à la corbeille."
+
+#: thisismyurl-revision-reaper.php:116
+msgid "Cleanup finished. Optimizing tables..."
+msgstr "Nettoyage terminé. Optimisation des tables en cours…"
+
+#: thisismyurl-revision-reaper.php:117
+msgid "Simulation complete. No changes made."
+msgstr "Simulation terminée. Aucune modification apportée."
+
+#: thisismyurl-revision-reaper.php:118
+msgid "Writing pre-run export..."
+msgstr "Écriture de l'exportation préalable…"
+
+#: thisismyurl-revision-reaper.php:119
+msgid "Pre-run export failed."
+msgstr "L'exportation préalable a échoué."
+
+#: thisismyurl-revision-reaper.php:120
+msgid "Aborting: pre-run export request failed."
+msgstr "Abandon : la demande d'exportation préalable a échoué."
+
+#: thisismyurl-revision-reaper.php:127
+msgid "Settings"
+msgstr "Paramètres"
+
+#: thisismyurl-revision-reaper.php:556
+msgid "Invalid item type."
+msgstr "Type d'élément invalide."
+
+#: thisismyurl-revision-reaper.php:559
+msgid "Invalid item ID."
+msgstr "Identifiant d'élément invalide."
+
+#: thisismyurl-revision-reaper.php:565
+#, php-format
+msgid "[DRY RUN] Would process item #%1$d (%2$s)"
+msgstr "[SIMULATION] Traiterait l'élément nº %1$d (%2$s)"
+
+#: thisismyurl-revision-reaper.php:578
+#, php-format
+msgid "Reaped revisions for Post #%d"
+msgstr "Révisions supprimées pour la publication nº %d"
+
+#: thisismyurl-revision-reaper.php:586
+#, php-format
+msgid "Skipped Trashed Post #%d (not yet older than EMPTY_TRASH_DAYS)"
+msgstr "Publication mise à la corbeille nº %d ignorée (pas encore plus ancienne que EMPTY_TRASH_DAYS)"
+
+#: thisismyurl-revision-reaper.php:594
+#, php-format
+msgid "Purged Trashed Post #%d"
+msgstr "Publication mise à la corbeille nº %d purgée"
+
+#: thisismyurl-revision-reaper.php:602
+#, php-format
+msgid "Moved Spam Comment #%d to comment trash"
+msgstr "Commentaire indésirable nº %d déplacé vers la corbeille des commentaires"
+
+#: thisismyurl-revision-reaper.php:609
+msgid "No handler matched the requested item type."
+msgstr "Aucun gestionnaire ne correspond au type d'élément demandé."
+
+#: thisismyurl-revision-reaper.php:622
+#: thisismyurl-revision-reaper.php:679
+msgid "Unauthorized"
+msgstr "Non autorisé"
+
+#: thisismyurl-revision-reaper.php:634
+msgid "Nothing to export — no eligible items."
+msgstr "Rien à exporter — aucun élément admissible."
+
+#: thisismyurl-revision-reaper.php:640
+msgid "Pre-run export failed to write. Aborting live run."
+msgstr "L'écriture de l'exportation préalable a échoué. Abandon de l'exécution en direct."
+
+#: thisismyurl-revision-reaper.php:645
+#, php-format
+msgid "Pre-run export written: %s"
+msgstr "Exportation préalable écrite : %s"
+
+#: thisismyurl-revision-reaper.php:661
+msgid "You do not have permission to start a Revision Reaper run."
+msgstr "Vous n'avez pas la permission de lancer une exécution de Revision Reaper."
+
+#: thisismyurl-revision-reaper.php:687
+#, php-format
+msgid "Optimized %1$d tables and removed %2$d expired transient pairs."
+msgstr "Optimisé %1$d tables et supprimé %2$d paires de transitoires expirées."
+
+#: thisismyurl-revision-reaper.php:699
+msgid "You do not have permission to manage Revision Reaper."
+msgstr "Vous n'avez pas la permission de gérer Revision Reaper."
+
+#: thisismyurl-revision-reaper.php:708
+msgid "You do not have permission to update these settings."
+msgstr "Vous n'avez pas la permission de modifier ces paramètres."
+
+#: thisismyurl-revision-reaper.php:743
+msgid "Settings and Schedule updated successfully."
+msgstr "Paramètres et planification mis à jour avec succès."
+
+#: thisismyurl-revision-reaper.php:780
+#, php-format
+msgid "by %s"
+msgstr "par %s"
+
+#: thisismyurl-revision-reaper.php:781
+msgid "This Is My URL"
+msgstr "This Is My URL"
+
+#: thisismyurl-revision-reaper.php:786
+msgid "Optimize performance by reaping revisions, trash, and spam using persistent settings."
+msgstr "Optimisez les performances en supprimant les révisions, la corbeille et les indésirables à l'aide de paramètres persistants."
+
+#: thisismyurl-revision-reaper.php:795
+msgid "Configuration & Automation"
+msgstr "Configuration et automatisation"
+
+#: thisismyurl-revision-reaper.php:799
+msgid "Revisions to Keep"
+msgstr "Révisions à conserver"
+
+#: thisismyurl-revision-reaper.php:803
+msgid "Include Trash"
+msgstr "Inclure la corbeille"
+
+#: thisismyurl-revision-reaper.php:807
+msgid "Include Spam"
+msgstr "Inclure les indésirables"
+
+#: thisismyurl-revision-reaper.php:812
+msgid "Enable Automation"
+msgstr "Activer l'automatisation"
+
+#: thisismyurl-revision-reaper.php:820
+#, php-format
+msgid "Next Scheduled Run: %s"
+msgstr "Prochaine exécution planifiée : %s"
+
+#: thisismyurl-revision-reaper.php:829
+msgid "First Run Date & Time"
+msgstr "Date et heure de la première exécution"
+
+#: thisismyurl-revision-reaper.php:836
+msgid "Recurrence Interval"
+msgstr "Intervalle de récurrence"
+
+#: thisismyurl-revision-reaper.php:856
+msgid "Reporting Email"
+msgstr "Courriel de rapport"
+
+#: thisismyurl-revision-reaper.php:862
+msgid "Save All Settings & Schedule"
+msgstr "Enregistrer tous les paramètres et la planification"
+
+#: thisismyurl-revision-reaper.php:869
+msgid "Run Cleanup"
+msgstr "Lancer le nettoyage"
+
+#: thisismyurl-revision-reaper.php:872
+msgid "A \"Dry Run\" reports what would change without touching the database. A live run writes a JSON snapshot of every affected row to your uploads directory before any deletion, then trashes (never force-deletes) the matching items."
+msgstr "Une « Simulation » indique ce qui changerait sans modifier la base de données. Une exécution en direct écrit un instantané JSON de chaque ligne concernée dans votre répertoire de téléversements avant toute suppression, puis met les éléments correspondants à la corbeille (sans jamais forcer la suppression)."
+
+#: thisismyurl-revision-reaper.php:879
+msgid "Dry Run"
+msgstr "Simulation"
+
+#: thisismyurl-revision-reaper.php:888
+msgid "I understand a JSON snapshot will be written to uploads/revision-reaper/exports/ before deletion and I have verified my own backups are current."
+msgstr "Je comprends qu'un instantané JSON sera écrit dans uploads/revision-reaper/exports/ avant la suppression et j'ai vérifié que mes propres sauvegardes sont à jour."
+
+#: thisismyurl-revision-reaper.php:891
+msgid "Run Now (Live)"
+msgstr "Exécuter maintenant (en direct)"
+
+#: thisismyurl-revision-reaper.php:897
+msgid "Simulation Log"
+msgstr "Journal de simulation"
+
+#: thisismyurl-revision-reaper.php:897
+msgid "Live Activity Log"
+msgstr "Journal d'activité en direct"
+
+#: includes/class-site-health.php:64
+msgid "No scheduled run"
+msgstr "Aucune exécution planifiée"
+
+#: includes/class-site-health.php:66
+msgid "Enabled"
+msgstr "Activé"
+
+#: includes/class-site-health.php:66
+msgid "Disabled"
+msgstr "Désactivé"
+
+#: includes/class-site-health.php:70
+msgid "Cleanup-eligible counts and current scheduling state for the Revision Reaper plugin."
+msgstr "Comptages admissibles au nettoyage et état actuel de la planification pour l'extension Revision Reaper."
+
+#: includes/class-site-health.php:73
+msgid "Revision rows in wp_posts"
+msgstr "Lignes de révisions dans wp_posts"
+
+#: includes/class-site-health.php:77
+msgid "Trashed posts"
+msgstr "Publications à la corbeille"
+
+#: includes/class-site-health.php:81
+msgid "Spam comments"
+msgstr "Commentaires indésirables"
+
+#: includes/class-site-health.php:85
+msgid "Transient timeout rows"
+msgstr "Lignes de transitoires expirées"
+
+#: includes/class-site-health.php:89
+msgid "Automation"
+msgstr "Automatisation"
+
+#: includes/class-site-health.php:93
+msgid "Next scheduled run"
+msgstr "Prochaine exécution planifiée"
+
+#: includes/class-site-health.php:97
+msgid "EMPTY_TRASH_DAYS"
+msgstr "EMPTY_TRASH_DAYS"
+
+#: includes/class-site-health.php:101
+msgid "Plugin version"
+msgstr "Version de l'extension"

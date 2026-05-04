@@ -1,0 +1,276 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR Christopher Ross
+# This file is distributed under the same license as the Revision Reaper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Revision Reaper 0.6123\n"
+"Report-Msgid-Bugs-To: https://github.com/thisismyurl/thisismyurl-revision-"
+"reaper/issues\n"
+"POT-Creation-Date: 2026-05-04 23:47+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:56
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:57
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:775
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/includes/class-site-health.php:69
+msgid "Revision Reaper"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:114
+msgid ""
+"Please confirm the backup acknowledgement before running a live cleanup."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:115
+msgid ""
+"Start live database cleanup? Items will be exported to JSON, then trashed."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:116
+msgid "Cleanup finished. Optimizing tables..."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:117
+msgid "Simulation complete. No changes made."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:118
+msgid "Writing pre-run export..."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:119
+msgid "Pre-run export failed."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:120
+msgid "Aborting: pre-run export request failed."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:127
+msgid "Settings"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:556
+msgid "Invalid item type."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:559
+msgid "Invalid item ID."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:565
+#, php-format
+msgid "[DRY RUN] Would process item #%1$d (%2$s)"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:578
+#, php-format
+msgid "Reaped revisions for Post #%d"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:586
+#, php-format
+msgid "Skipped Trashed Post #%d (not yet older than EMPTY_TRASH_DAYS)"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:594
+#, php-format
+msgid "Purged Trashed Post #%d"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:602
+#, php-format
+msgid "Moved Spam Comment #%d to comment trash"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:609
+msgid "No handler matched the requested item type."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:622
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:679
+msgid "Unauthorized"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:634
+msgid "Nothing to export — no eligible items."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:640
+msgid "Pre-run export failed to write. Aborting live run."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:645
+#, php-format
+msgid "Pre-run export written: %s"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:661
+msgid "You do not have permission to start a Revision Reaper run."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:687
+#, php-format
+msgid "Optimized %1$d tables and removed %2$d expired transient pairs."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:699
+msgid "You do not have permission to manage Revision Reaper."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:708
+msgid "You do not have permission to update these settings."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:743
+msgid "Settings and Schedule updated successfully."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:780
+#, php-format
+msgid "by %s"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:781
+msgid "This Is My URL"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:786
+msgid ""
+"Optimize performance by reaping revisions, trash, and spam using persistent "
+"settings."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:795
+msgid "Configuration & Automation"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:799
+msgid "Revisions to Keep"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:803
+msgid "Include Trash"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:807
+msgid "Include Spam"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:812
+msgid "Enable Automation"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:820
+#, php-format
+msgid "Next Scheduled Run: %s"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:829
+msgid "First Run Date & Time"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:836
+msgid "Recurrence Interval"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:856
+msgid "Reporting Email"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:862
+msgid "Save All Settings & Schedule"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:869
+msgid "Run Cleanup"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:872
+msgid ""
+"A \"Dry Run\" reports what would change without touching the database. A "
+"live run writes a JSON snapshot of every affected row to your uploads "
+"directory before any deletion, then trashes (never force-deletes) the "
+"matching items."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:879
+msgid "Dry Run"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:888
+msgid ""
+"I understand a JSON snapshot will be written to uploads/revision-reaper/"
+"exports/ before deletion and I have verified my own backups are current."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:891
+msgid "Run Now (Live)"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:897
+msgid "Simulation Log"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:897
+msgid "Live Activity Log"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/includes/class-site-health.php:64
+msgid "No scheduled run"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/includes/class-site-health.php:66
+msgid "Enabled"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/includes/class-site-health.php:66
+msgid "Disabled"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/includes/class-site-health.php:70
+msgid ""
+"Cleanup-eligible counts and current scheduling state for the Revision Reaper "
+"plugin."
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/includes/class-site-health.php:73
+msgid "Revision rows in wp_posts"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/includes/class-site-health.php:77
+msgid "Trashed posts"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/includes/class-site-health.php:81
+msgid "Spam comments"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/includes/class-site-health.php:85
+msgid "Transient timeout rows"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/includes/class-site-health.php:89
+msgid "Automation"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/includes/class-site-health.php:93
+msgid "Next scheduled run"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/includes/class-site-health.php:97
+msgid "EMPTY_TRASH_DAYS"
+msgstr ""
+
+#: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/includes/class-site-health.php:101
+msgid "Plugin version"
+msgstr ""

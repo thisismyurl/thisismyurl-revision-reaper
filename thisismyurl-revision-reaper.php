@@ -9,6 +9,7 @@
  * Requires at least: 6.4
  * Requires PHP: 8.1
  * Text Domain: thisismyurl-revision-reaper
+ * Domain Path: /languages
  * License:     GPLv2 or later
  * @package Thisismyurl_Revision_Reaper
  */
@@ -920,6 +921,9 @@ class TIMU_Revision_Reaper {
  */
 TIMU_Revision_Reaper::init();
 
+add_action( 'plugins_loaded', function() {
+    load_plugin_textdomain( 'thisismyurl-revision-reaper', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+} );
 
 /**
  * GitHub Updater Integration.
