@@ -9,7 +9,7 @@
  * Requires at least: 6.4
  * Requires PHP: 8.1
  * Text Domain: thisismyurl-revision-reaper
- * License:     GPL2
+ * License:     GPLv2 or later
  * @package Thisismyurl_Revision_Reaper
  */
 
