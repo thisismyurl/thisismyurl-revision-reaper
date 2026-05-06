@@ -11,6 +11,9 @@
  * Text Domain: thisismyurl-revision-reaper
  * Domain Path: /languages
  * License:     GPLv2 or later
+ * GitHub Plugin URI: https://github.com/thisismyurl/thisismyurl-revision-reaper
+ * Primary Branch:    main
+ * Update URI:        https://github.com/thisismyurl/thisismyurl-revision-reaper
  * @package Thisismyurl_Revision_Reaper
  */
 
@@ -937,8 +940,8 @@ add_action( 'plugins_loaded', function() {
         require_once $updater_path;
         
         // Ensure the GitHub Updater class is available.
-        if ( class_exists( 'FWO_GitHub_Updater' ) ) {
-            new FWO_GitHub_Updater( array(
+        if ( class_exists( 'TIMU_GitHub_Updater' ) ) {
+            new TIMU_GitHub_Updater( array(
                 'slug'               => 'thisismyurl-revision-reaper',
                 'proper_folder_name' => 'thisismyurl-revision-reaper',
                 'api_url'            => 'https://api.github.com/repos/thisismyurl/thisismyurl-revision-reaper/releases/latest',
