@@ -10,7 +10,7 @@
  * Requires PHP: 8.1
  * Text Domain: thisismyurl-revision-reaper
  * Domain Path: /languages
- * License:     GPLv2 or later
+ * License:           GPL-2.0-or-later
  * GitHub Plugin URI: https://github.com/thisismyurl/thisismyurl-revision-reaper
  * Primary Branch:    main
  * Update URI:        https://github.com/thisismyurl/thisismyurl-revision-reaper

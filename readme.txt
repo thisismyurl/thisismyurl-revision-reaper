@@ -2,7 +2,7 @@
 Contributors: thisismyurl
 Tags: revisions, database cleanup, performance, wp cron, maintenance
 Requires at least: 6.4
-Tested up to: 6.8
+Tested up to: 6.9
 Requires PHP: 8.1
 Stable tag: 0.6123
 License: GPLv2 or later
