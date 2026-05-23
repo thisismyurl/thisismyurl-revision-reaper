@@ -1,10 +1,11 @@
 === Revision Reaper ===
 Contributors: thisismyurl
+Donate link: https://github.com/sponsors/thisismyurl
 Tags: revisions, database cleanup, performance, wp cron, maintenance
 Requires at least: 6.4
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 0.6123
+Stable tag: 1.6143
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Plugin URI: https://thisismyurl.com/thisismyurl-revision-reaper/
@@ -89,6 +90,10 @@ I review PRs thoughtfully and appreciate well-tested contributions. Contributing
 
 
 == Changelog ==
+
+= 1.6143 =
+* First full release (class 1). The 0.6xxx line was pre-release on the `x.Yddd` scheme.
+* Standardized the donation link to GitHub Sponsors.
 
 = 0.6123 =
 * Security: added nonce + capability checks on the settings POST handler.

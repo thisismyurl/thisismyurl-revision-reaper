@@ -5,7 +5,7 @@
  * Plugin Name: Revision Reaper
  * Plugin URI:  https://thisismyurl.com/thisismyurl-revision-reaper/
  * Description: Non-destructive database optimization with persistent settings, custom scheduling, and email reporting.
- * Version:     0.6123
+ * Version:     1.6143
  * Requires at least: 6.4
  * Requires PHP: 8.1
  * Text Domain: thisismyurl-revision-reaper
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'TIMU_REVISION_REAPER_VERSION' ) ) {
-    define( 'TIMU_REVISION_REAPER_VERSION', '0.6123' );
+    define( 'TIMU_REVISION_REAPER_VERSION', '1.6143' );
 }
 
 require_once __DIR__ . '/includes/class-exporter.php';
