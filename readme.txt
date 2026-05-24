@@ -1,4 +1,4 @@
-=== Revision Reaper ===
+=== This Is My URL - Revision Reaper ===
 Contributors: thisismyurl
 Donate link: https://github.com/sponsors/thisismyurl
 Tags: revisions, database cleanup, performance, wp cron, maintenance

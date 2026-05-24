@@ -1,4 +1,4 @@
-# Revision Reaper by This Is My URL
+# This Is My URL - Revision Reaper
 
 [![CI](https://github.com/thisismyurl/thisismyurl-revision-reaper/actions/workflows/ci.yml/badge.svg)](https://github.com/thisismyurl/thisismyurl-revision-reaper/actions/workflows/ci.yml) [![WordPress Tested](https://img.shields.io/badge/WordPress-6.9%2B-blue)](https://wordpress.org/) [![License](https://img.shields.io/badge/License-GPL--2.0-blue)](LICENSE)
 

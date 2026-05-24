@@ -2,7 +2,7 @@
 /**
  * Author:      Christopher Ross
  * Author URI:  https://thisismyurl.com/
- * Plugin Name: Revision Reaper
+ * Plugin Name: This Is My URL - Revision Reaper
  * Plugin URI:  https://thisismyurl.com/thisismyurl-revision-reaper/
  * Description: Non-destructive database optimization with persistent settings, custom scheduling, and email reporting.
  * Version:     1.6143
@@ -128,6 +128,7 @@ class TIMU_Revision_Reaper {
     public static function add_plugin_action_links( $links ) {
         $custom_links = array(
             '<a href="' . admin_url( 'tools.php?page=revision-reaper' ) . '">' . esc_html__( 'Settings', 'thisismyurl-revision-reaper' ) . '</a>',
+            '<a href="' . esc_url( 'https://github.com/sponsors/thisismyurl' ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Sponsor', 'thisismyurl-revision-reaper' ) . '</a>',
         );
         return array_merge( $custom_links, $links );
     }
