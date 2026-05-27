@@ -5,7 +5,7 @@ Tags: revisions, database cleanup, performance, wp cron, maintenance
 Requires at least: 6.4
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.6143
+Stable tag: 1.6147
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Plugin URI: https://thisismyurl.com/thisismyurl-revision-reaper/
@@ -90,6 +90,11 @@ I review PRs thoughtfully and appreciate well-tested contributions. Contributing
 
 
 == Changelog ==
+
+= 1.6147 =
+* Unified plugin versioning to the x.Yddd calendar-version scheme.
+* Confirmed compatibility with WordPress 7.0.
+
 
 = 1.6143 =
 * First full release (class 1). The 0.6xxx line was pre-release on the `x.Yddd` scheme.
