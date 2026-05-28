@@ -91,6 +91,10 @@ I review PRs thoughtfully and appreciate well-tested contributions. Contributing
 
 == Changelog ==
 
+= 1.6148 =
+* Added WordPress 7 Abilities API support: the `thisismyurl-revision-reaper/clean` ability runs a full cleanup pass (revisions, trashed posts, spam comments, expired transients, table optimization) and returns per-category counts plus bytes reclaimed, with an optional `dry_run` preview. Guarded by the `manage_options` capability.
+* Extracted the shared cleanup routine into a single `TIMU_Revision_Reaper::run_cleanup()` method so the scheduled cron and the new ability funnel through one implementation.
+
 = 1.6147 =
 * Unified plugin versioning to the x.Yddd calendar-version scheme.
 * Confirmed compatibility with WordPress 7.0.

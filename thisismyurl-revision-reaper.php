@@ -27,6 +27,7 @@ if ( ! defined( 'TIMU_REVISION_REAPER_VERSION' ) ) {
 
 require_once __DIR__ . '/includes/class-exporter.php';
 require_once __DIR__ . '/includes/class-site-health.php';
+require_once __DIR__ . '/includes/abilities.php';
 
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
     require_once __DIR__ . '/includes/class-cli.php';
@@ -143,49 +144,121 @@ class TIMU_Revision_Reaper {
             'include_spam'  => get_option( 'timu_rr_auto_spam', 0 ),
         );
         $email = get_option( 'timu_rr_report_email', get_option( 'admin_email' ) );
-        
-        $items = self::get_eligible_items( $settings );
-        $log = array();
 
-        // Pre-delete snapshot so a regretted scheduled run can be reconstructed
-        // from disk. Failure to write is logged but does not abort the run —
-        // the run itself uses trash, not force-delete (see class header).
-        if ( ! empty( $items ) ) {
-            $export_path = TIMU_Revision_Reaper_Exporter::snapshot_before_run( $items, (int) $settings['limit'] );
+        $report = self::run_cleanup( $settings );
+
+        // Send Email Report
+        if ( ! empty( $email ) ) {
+            $log     = $report['log'];
+            $subject = '[' . get_bloginfo( 'name' ) . '] Revision Reaper Automated Report';
+            $message = "The scheduled database cleanup has finished.\n\nItems Processed:\n" . ( ! empty( $log ) ? implode( "\n", $log ) : 'No items required cleaning.' );
+            wp_mail( $email, $subject, $message );
+        }
+    }
+
+    /**
+     * Perform a full cleanup pass and return structured counts plus ROI.
+     *
+     * This is the canonical, UI-agnostic cleanup routine. The scheduled-cron
+     * handler, the WP-CLI command, and the Abilities API all funnel through
+     * here so the deletion rules and ROI maths live in exactly one place.
+     *
+     * The run is non-destructive in the same sense the rest of the plugin is:
+     * trashed posts are force-deleted only once they have aged past
+     * EMPTY_TRASH_DAYS, spam comments are moved to the comment trash (not
+     * force-deleted), and a JSON snapshot is written before any row is touched.
+     *
+     * @param array $settings { limit, include_trash, include_spam, include_revisions }.
+     *                        include_revisions is optional and defaults to true
+     *                        (the historical behaviour); set it false to skip the
+     *                        revision sweep entirely.
+     * @param array $caps     Optional overrides forwarded to get_eligible_items().
+     * @param bool  $dry_run  When true, compute counts and ROI without deleting.
+     * @return array {
+     *     @type int    $revisions      Posts whose surplus revisions were reaped.
+     *     @type int    $trashed_posts  Trashed posts purged (aged past EMPTY_TRASH_DAYS).
+     *     @type int    $trash_skipped  Trashed posts skipped (not yet old enough).
+     *     @type int    $spam_comments  Spam comments moved to the comment trash.
+     *     @type int    $transients     Expired transient pairs removed.
+     *     @type int    $tables         Tables optimized.
+     *     @type int    $bytes_freed    Bytes reclaimed from reaped revision rows.
+     *     @type bool   $dry_run        Whether this was a preview run.
+     *     @type string $export         Snapshot file path, or '' when none was written.
+     *     @type array  $log            Human-readable per-step log lines.
+     * }
+     */
+    public static function run_cleanup( array $settings, array $caps = array(), $dry_run = false ) {
+        $dry_run = (bool) $dry_run;
+        $limit   = max( 0, (int) $settings['limit'] );
+        $items   = self::get_eligible_items( $settings, $caps );
+        $log     = array();
+        $export  = '';
+
+        // Revisions are swept by default; an explicit false opts out. We filter
+        // the eligible set rather than touch the shared scan so nothing excluded
+        // is ever snapshotted or deleted (mirrors the WP-CLI --include behaviour).
+        $include_revisions = ! array_key_exists( 'include_revisions', $settings ) || ! empty( $settings['include_revisions'] );
+        if ( ! $include_revisions ) {
+            $items = array_values( array_filter( $items, static function ( $item ) {
+                return 'revision' !== $item['type'];
+            } ) );
+        }
+
+        // Pre-delete snapshot so a regretted run can be reconstructed from
+        // disk. Skipped on a dry run — nothing is being removed to snapshot.
+        if ( ! $dry_run && ! empty( $items ) ) {
+            $export_path = TIMU_Revision_Reaper_Exporter::snapshot_before_run( $items, $limit );
             if ( $export_path ) {
-                $log[] = 'Pre-run export written: ' . wp_basename( $export_path );
+                $export = $export_path;
+                $log[]  = 'Pre-run export written: ' . wp_basename( $export_path );
             } else {
                 $log[] = 'WARNING: pre-run export failed to write.';
             }
         }
 
+        $counts = array(
+            'revisions'     => 0,
+            'trashed_posts' => 0,
+            'trash_skipped' => 0,
+            'spam_comments' => 0,
+        );
         $bytes_freed = 0;
 
         foreach ( $items as $item ) {
             if ( 'trash' === $item['type'] ) {
                 // Non-destructive: delegate to WP's trash lifecycle. WP itself
                 // empties trash items older than EMPTY_TRASH_DAYS via the
-                // wp_scheduled_delete cron — we never force-delete here.
+                // wp_scheduled_delete cron — we never force-delete the young.
                 if ( ! self::trash_post_eligible_for_purge( $item['id'] ) ) {
+                    $counts['trash_skipped']++;
                     continue;
                 }
-                wp_delete_post( $item['id'], false );
+                if ( ! $dry_run ) {
+                    wp_delete_post( $item['id'], false );
+                }
+                $counts['trashed_posts']++;
                 $log[] = "Trashed Post #{$item['id']} purged (older than EMPTY_TRASH_DAYS)";
             } elseif ( 'spam' === $item['type'] ) {
                 // Non-destructive: trash spam comments. Site owner can still
                 // recover from the Comments > Trash list before WP empties it.
-                wp_trash_comment( $item['id'] );
+                if ( ! $dry_run ) {
+                    wp_trash_comment( $item['id'] );
+                }
+                $counts['spam_comments']++;
                 $log[] = "Spam Comment #{$item['id']} moved to comment trash";
             } else {
                 $revisions = wp_get_post_revisions( $item['id'] );
-                $to_remove = array_slice( $revisions, $settings['limit'] );
+                $to_remove = array_slice( $revisions, $limit );
                 foreach ( $to_remove as $rev ) {
                     // Honest ROI: count actual bytes the row contributed
                     // before we drop it. Sum of post_content lengths is the
                     // dominant component on a revision.
                     $bytes_freed += strlen( (string) $rev->post_content );
-                    wp_delete_post_revision( $rev->ID );
+                    if ( ! $dry_run ) {
+                        wp_delete_post_revision( $rev->ID );
+                    }
                 }
+                $counts['revisions']++;
                 $log[] = "Reaped revisions for Post #{$item['id']}";
             }
         }
@@ -196,27 +269,61 @@ class TIMU_Revision_Reaper {
                 size_format( $bytes_freed )
             );
         }
-        
+
         // Expired transients live in wp_options (or sitemeta on multisite).
-        // The plugin marketed transient cleanup but never implemented it.
-        $expired_transients = self::delete_expired_transients();
-        if ( $expired_transients > 0 ) {
-            $log[] = sprintf( 'Deleted %d expired transient pairs.', (int) $expired_transients );
+        // Counting is inseparable from deletion in WP's helper, so a dry run
+        // reports a separately-measured eligible count instead.
+        $transients = $dry_run ? self::count_expired_transients() : self::delete_expired_transients();
+        if ( $transients > 0 ) {
+            $log[] = sprintf( 'Deleted %d expired transient pairs.', (int) $transients );
         }
 
         // Final database optimization (MyISAM tables only — InnoDB rebuilds
-        // on OPTIMIZE which is wasteful on a maintenance pass).
-        $optimized = self::optimize_wp_tables();
+        // on OPTIMIZE which is wasteful on a maintenance pass). No-op on a
+        // dry run; OPTIMIZE has no safe non-destructive preview.
+        $optimized = $dry_run ? 0 : self::optimize_wp_tables();
         if ( $optimized > 0 ) {
             $log[] = sprintf( 'Optimized %d tables.', (int) $optimized );
         }
 
-        // Send Email Report
-        if ( ! empty( $email ) ) {
-            $subject = '[' . get_bloginfo( 'name' ) . '] Revision Reaper Automated Report';
-            $message = "The scheduled database cleanup has finished.\n\nItems Processed:\n" . ( ! empty( $log ) ? implode( "\n", $log ) : "No items required cleaning." );
-            wp_mail( $email, $subject, $message );
-        }
+        return array(
+            'revisions'     => $counts['revisions'],
+            'trashed_posts' => $counts['trashed_posts'],
+            'trash_skipped' => $counts['trash_skipped'],
+            'spam_comments' => $counts['spam_comments'],
+            'transients'    => (int) $transients,
+            'tables'        => (int) $optimized,
+            'bytes_freed'   => $bytes_freed,
+            'dry_run'       => $dry_run,
+            'export'        => $export,
+            'log'           => $log,
+        );
+    }
+
+    /**
+     * Count expired transient pairs without deleting them.
+     *
+     * WP core's delete_expired_transients() returns void and always deletes,
+     * so a dry run needs its own read-only count of the same rows that helper
+     * would remove. Mirrors the LIKE clauses used in delete_expired_transients().
+     *
+     * @return int Number of expired transient *pairs* (value + timeout) eligible for removal.
+     */
+    public static function count_expired_transients() {
+        global $wpdb;
+
+        // Timeout rows whose stored expiry is in the past. Each timeout row
+        // pairs with one value row, so the timeout count is the pair count.
+        $now = time();
+
+        return (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->options}
+             WHERE ( option_name LIKE %s OR option_name LIKE %s )
+               AND option_value < %d",
+            $wpdb->esc_like( '_transient_timeout_' ) . '%',
+            $wpdb->esc_like( '_site_transient_timeout_' ) . '%',
+            $now
+        ) );
     }
 
     /**
