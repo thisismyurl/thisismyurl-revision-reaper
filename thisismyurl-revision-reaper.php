@@ -1044,21 +1044,13 @@ add_action( 'plugins_loaded', function() {
  * Loads the updater logic once all plugins have been loaded by WordPress.
  */
 add_action( 'plugins_loaded', function() {
-    $updater_path = plugin_dir_path( __FILE__ ) . 'updater.php';
-    
-    // Check if the updater file exists before attempting to require it.
-    if ( file_exists( $updater_path ) ) {
-        require_once $updater_path;
-        
-        // Ensure the GitHub Updater class is available.
-        if ( class_exists( 'TIMU_GitHub_Updater' ) ) {
-            new TIMU_GitHub_Updater( array(
-                'slug'               => 'thisismyurl-revision-reaper',
-                'proper_folder_name' => 'thisismyurl-revision-reaper',
-                'api_url'            => 'https://api.github.com/repos/thisismyurl/thisismyurl-revision-reaper/releases/latest',
-                'github_url'         => 'https://github.com/thisismyurl/thisismyurl-revision-reaper',
-                'plugin_file'        => __FILE__,
-            ) );
-        }
-    }
+    require_once plugin_dir_path( __FILE__ ) . 'github-updater.php';
+
+    \ThisIsMyURL\RevisionReaper\GitHubReleaseUpdater::boot(
+        array(
+            'plugin_file' => __FILE__,
+            'slug'        => 'thisismyurl-revision-reaper',
+            'repo'        => 'thisismyurl/thisismyurl-revision-reaper',
+        )
+    );
 });
