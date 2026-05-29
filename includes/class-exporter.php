@@ -3,14 +3,20 @@
  * Pre-delete export for Revision Reaper.
  *
  * Writes a JSON snapshot of the rows we are about to remove (revisions and
- * comments) into the uploads directory before any destructive call runs.
- * Acts as a poor-man's restore source: the user can re-insert manually if
- * they regret a run, and we don't bury the data behind a paywall.
+ * comments) before any destructive call runs. Acts as a poor-man's restore
+ * source: the user can re-insert manually if they regret a run, and we don't
+ * bury the data behind a paywall.
  *
- * Storage layout:
- *   uploads/revision-reaper/exports/<timestamp>-<uniqid>.json
- *   uploads/revision-reaper/exports/.htaccess  (deny-all for Apache)
- *   uploads/revision-reaper/exports/index.php  (silence is golden)
+ * Storage: each snapshot is a single non-autoloaded option named
+ * `timu_rr_export_<token>`, plus a registry option `timu_rr_export_index`
+ * that tracks the snapshot tokens and their timestamps for retention.
+ *
+ * The snapshot rows can include comment PII (author email, author IP), so the
+ * data is deliberately kept inside the database rather than on disk. A file in
+ * `wp-content/uploads/` is web-root on every server and the deny-all `.htaccess`
+ * that previously guarded it is inert on nginx, so a guessable filename could
+ * expose the PII snapshot to an unauthenticated request. The options table is
+ * never web-served, so the snapshot is unreachable regardless of web server.
  *
  * Retention: exports older than 30 days are pruned at the start of each run.
  *
@@ -27,56 +33,31 @@ if ( ! defined( 'ABSPATH' ) ) {
 class TIMU_Revision_Reaper_Exporter {
 
 	const RETENTION_DAYS = 30;
-	const SUBDIR         = 'revision-reaper/exports';
 
 	/**
-	 * Returns the absolute path to the exports directory, creating it
-	 * (with deny-all guards) on first call. Returns false on failure.
-	 *
-	 * @return string|false
+	 * Option-name prefix for an individual snapshot.
 	 */
-	public static function get_export_dir() {
-		$uploads = wp_upload_dir( null, false );
-		if ( empty( $uploads['basedir'] ) || ! empty( $uploads['error'] ) ) {
-			return false;
-		}
-
-		$dir = trailingslashit( $uploads['basedir'] ) . self::SUBDIR;
-		if ( ! wp_mkdir_p( $dir ) ) {
-			return false;
-		}
-
-		// Guards. Idempotent — only written once.
-		$htaccess = trailingslashit( $dir ) . '.htaccess';
-		if ( ! file_exists( $htaccess ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-			@file_put_contents( $htaccess, "Require all denied\nDeny from all\n" );
-		}
-
-		$index = trailingslashit( $dir ) . 'index.php';
-		if ( ! file_exists( $index ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-			@file_put_contents( $index, "<?php // Silence is golden.\n" );
-		}
-
-		return $dir;
-	}
+	const OPTION_PREFIX = 'timu_rr_export_';
 
 	/**
-	 * Snapshot the supplied work list to a JSON file. Returns the absolute
-	 * file path on success, or false on failure.
+	 * Option holding the snapshot registry: token => unix timestamp.
+	 */
+	const INDEX_OPTION = 'timu_rr_export_index';
+
+	/**
+	 * Snapshot the supplied work list to a non-autoloaded option. Returns an
+	 * opaque handle (the snapshot's option name) on success, or false on
+	 * failure.
 	 *
-	 * @param array $items   List of { id, type } pairs that the worker will process.
-	 * @param int   $limit   Revisions-to-keep value used for the run.
+	 * The handle is suitable for display to the operator and is what the
+	 * run report, the WP-CLI command, and the AJAX pre-run check echo back.
+	 *
+	 * @param array $items List of { id, type } pairs that the worker will process.
+	 * @param int   $limit Revisions-to-keep value used for the run.
 	 * @return string|false
 	 */
 	public static function snapshot_before_run( array $items, $limit ) {
-		$dir = self::get_export_dir();
-		if ( false === $dir ) {
-			return false;
-		}
-
-		self::prune_old_exports( $dir );
+		self::prune_old_exports();
 
 		$payload = array(
 			'meta'  => array(
@@ -90,17 +71,38 @@ class TIMU_Revision_Reaper_Exporter {
 			'items' => self::expand_items_for_export( $items, (int) $limit ),
 		);
 
-		$file = trailingslashit( $dir ) . gmdate( 'Y-m-d_His' ) . '-' . wp_generate_password( 8, false, false ) . '.json';
 		$json = wp_json_encode( $payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
-
 		if ( false === $json ) {
 			return false;
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-		$ok = @file_put_contents( $file, $json );
+		$token       = gmdate( 'Y-m-d_His' ) . '-' . wp_generate_password( 8, false, false );
+		$option_name = self::OPTION_PREFIX . $token;
 
-		return $ok ? $file : false;
+		// Snapshots can hold comment PII and are read only on a manual restore,
+		// so they must never be autoloaded into memory on every request.
+		if ( ! add_option( $option_name, $json, '', false ) ) {
+			return false;
+		}
+
+		self::register_snapshot( $token );
+
+		return $option_name;
+	}
+
+	/**
+	 * Record a snapshot token and its creation time in the registry.
+	 *
+	 * @param string $token Snapshot token (the part after OPTION_PREFIX).
+	 * @return void
+	 */
+	private static function register_snapshot( $token ) {
+		$index = get_option( self::INDEX_OPTION, array() );
+		if ( ! is_array( $index ) ) {
+			$index = array();
+		}
+		$index[ $token ] = time();
+		update_option( self::INDEX_OPTION, $index, false );
 	}
 
 	/**
@@ -202,22 +204,31 @@ class TIMU_Revision_Reaper_Exporter {
 	}
 
 	/**
-	 * Delete export files older than RETENTION_DAYS days.
+	 * Delete snapshot options older than RETENTION_DAYS days and drop their
+	 * registry entries. Also reaps registry entries whose option has already
+	 * been removed by hand, keeping the index honest.
 	 *
-	 * @param string $dir Absolute directory path.
 	 * @return void
 	 */
-	public static function prune_old_exports( $dir ) {
-		$cutoff = time() - ( self::RETENTION_DAYS * DAY_IN_SECONDS );
-		$glob   = glob( trailingslashit( $dir ) . '*.json' );
-		if ( empty( $glob ) ) {
+	public static function prune_old_exports() {
+		$index = get_option( self::INDEX_OPTION, array() );
+		if ( ! is_array( $index ) || empty( $index ) ) {
 			return;
 		}
-		foreach ( $glob as $file ) {
-			$mtime = @filemtime( $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
-			if ( false !== $mtime && $mtime < $cutoff ) {
-				@unlink( $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors,WordPress.WP.AlternativeFunctions.unlink_unlink
+
+		$cutoff  = time() - ( self::RETENTION_DAYS * DAY_IN_SECONDS );
+		$changed = false;
+
+		foreach ( $index as $token => $created ) {
+			if ( (int) $created < $cutoff ) {
+				delete_option( self::OPTION_PREFIX . $token );
+				unset( $index[ $token ] );
+				$changed = true;
 			}
+		}
+
+		if ( $changed ) {
+			update_option( self::INDEX_OPTION, $index, false );
 		}
 	}
 }

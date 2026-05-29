@@ -35,3 +35,28 @@ $options = array(
 foreach ( $options as $option ) {
     delete_option( $option );
 }
+
+/**
+ * 3. Delete every pre-delete snapshot and its registry.
+ *
+ * Snapshots are stored as non-autoloaded options named
+ * `timu_rr_export_<token>`, tracked in the `timu_rr_export_index` registry.
+ * Walk the registry first, then sweep any orphaned snapshot rows the
+ * registry missed (e.g. a snapshot whose registry entry was lost).
+ */
+$export_index = get_option( 'timu_rr_export_index', array() );
+if ( is_array( $export_index ) ) {
+    foreach ( array_keys( $export_index ) as $token ) {
+        delete_option( 'timu_rr_export_' . $token );
+    }
+}
+delete_option( 'timu_rr_export_index' );
+
+global $wpdb;
+$orphans = $wpdb->get_col( $wpdb->prepare(
+    "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
+    $wpdb->esc_like( 'timu_rr_export_' ) . '%'
+) );
+foreach ( $orphans as $orphan ) {
+    delete_option( $orphan );
+}
