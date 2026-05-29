@@ -4,7 +4,7 @@
  *
  * Polls a GitHub Release for a newer tag and feeds it into WordPress's
  * plugin-update transient. Bundled per-plugin under a prefixed namespace so
- * two co-installed thisismyurl.com plugins can't collide on the class name.
+ * two co-installed plugins can't collide on the class name.
  *
  * @package ThisIsMyURL\RevisionReaper
  */
