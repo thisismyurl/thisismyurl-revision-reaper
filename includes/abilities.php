@@ -7,7 +7,7 @@
  * REST/AI-invokable ability that returns per-category counts and ROI.
  *
  * @package Thisismyurl_Revision_Reaper
- * @since   1.6147
+ * @since   1.6148
  */
 
 declare( strict_types = 1 );

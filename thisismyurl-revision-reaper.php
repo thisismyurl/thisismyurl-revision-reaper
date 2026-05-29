@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'TIMU_REVISION_REAPER_VERSION' ) ) {
-    define( 'TIMU_REVISION_REAPER_VERSION', '1.6147' );
+    define( 'TIMU_REVISION_REAPER_VERSION', '1.6150' );
 }
 
 require_once __DIR__ . '/includes/class-exporter.php';
@@ -147,11 +147,21 @@ class TIMU_Revision_Reaper {
 
         $report = self::run_cleanup( $settings );
 
-        // Send Email Report
-        if ( ! empty( $email ) ) {
-            $log     = $report['log'];
+        // Only email when the run actually cleaned something. A weekly
+        // "No items required cleaning" notice is the top driver of "why is
+        // this plugin emailing me" support tickets, so a quiet run stays
+        // silent. We gate on the per-category counts rather than the log,
+        // because the log carries bookkeeping lines (pre-run export written,
+        // etc.) even on a run that removed no rows.
+        $cleaned = (int) $report['revisions']
+            + (int) $report['trashed_posts']
+            + (int) $report['spam_comments']
+            + (int) $report['transients']
+            + (int) $report['tables'];
+
+        if ( ! empty( $email ) && $cleaned > 0 ) {
             $subject = '[' . get_bloginfo( 'name' ) . '] Revision Reaper Automated Report';
-            $message = "The scheduled database cleanup has finished.\n\nItems Processed:\n" . ( ! empty( $log ) ? implode( "\n", $log ) : 'No items required cleaning.' );
+            $message = "The scheduled database cleanup has finished.\n\nItems Processed:\n" . implode( "\n", $report['log'] );
             wp_mail( $email, $subject, $message );
         }
     }
@@ -333,30 +343,23 @@ class TIMU_Revision_Reaper {
      * and we simply delegate to it — wrapping it here keeps the call site
      * legible and lets us return a count for the run report.
      *
-     * @return int Number of transient *pairs* (value + timeout) removed.
+     * We pre-count only the *expired* pairs (the rows core is about to remove)
+     * with a single scan via count_expired_transients(), rather than counting
+     * all timeout rows twice (before and after). That earlier before/after
+     * delta meant three full passes over the timeout rows per run — two of our
+     * own counts plus core's own scan — when one read of the rows-to-be-removed
+     * gives the same report number.
+     *
+     * @return int Number of expired transient *pairs* (value + timeout) removed.
      */
     public static function delete_expired_transients() {
-        global $wpdb;
-
-        // Pre-count so we can report something meaningful. WP's helper
-        // returns void, so we measure the option-row delta ourselves.
-        $before = (int) $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->options}
-             WHERE option_name LIKE '\\_transient\\_timeout\\_%'
-                OR option_name LIKE '\\_site\\_transient\\_timeout\\_%'"
-        );
+        $expired = self::count_expired_transients();
 
         if ( function_exists( 'delete_expired_transients' ) ) {
             delete_expired_transients( true );
         }
 
-        $after = (int) $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->options}
-             WHERE option_name LIKE '\\_transient\\_timeout\\_%'
-                OR option_name LIKE '\\_site\\_transient\\_timeout\\_%'"
-        );
-
-        return max( 0, $before - $after );
+        return $expired;
     }
 
     /**
@@ -996,7 +999,7 @@ class TIMU_Revision_Reaper {
                                     <p>
                                         <label>
                                             <input type="checkbox" name="rr_backup_confirm" id="rr-backup-confirm" value="1" aria-controls="rr-live-run-btn">
-                                            <?php esc_html_e( 'I understand a JSON snapshot will be written to uploads/revision-reaper/exports/ before deletion and I have verified my own backups are current.', 'thisismyurl-revision-reaper' ); ?>
+                                            <?php esc_html_e( 'I understand a JSON snapshot will be saved to the database before deletion and I have verified my own backups are current.', 'thisismyurl-revision-reaper' ); ?>
                                         </label>
                                     </p>
                                     <button type="submit" class="button button-primary" id="rr-live-run-btn" disabled><?php esc_html_e( 'Run Now (Live)', 'thisismyurl-revision-reaper' ); ?></button>

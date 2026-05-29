@@ -5,7 +5,7 @@ Tags: revisions, database cleanup, performance, wp cron, maintenance
 Requires at least: 6.4
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.6147
+Stable tag: 1.6150
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Plugin URI: https://thisismyurl.com/thisismyurl-revision-reaper/
@@ -57,7 +57,7 @@ No. It targets revisions, trash, spam/unapproved comments, and expired transient
 Yes. Configure interval and run size in plugin settings.
 
 = Is this suitable for multisite? =
-The plugin loads and runs per-site on multisite (not network-activated as a single switch). Each site keeps its own settings, schedule, and pre-delete export directory under its own `wp-content/uploads/`. Multisite is not part of the formal test matrix yet — please test in a staging network before rolling to production. Network-wide reaping (one cron pass that walks every site) is on the roadmap and tracked on the GitHub issue list.
+The plugin loads and runs per-site on multisite (not network-activated as a single switch). Each site keeps its own settings, schedule, and pre-delete snapshots in its own options table. Multisite is not part of the formal test matrix yet — please test in a staging network before rolling to production. Network-wide reaping (one cron pass that walks every site) is on the roadmap and tracked on the GitHub issue list.
 
 == Support, Contributing & Sponsorship ==
 
@@ -90,6 +90,12 @@ I review PRs thoughtfully and appreciate well-tested contributions. Contributing
 
 
 == Changelog ==
+
+= 1.6150 =
+* Privacy: pre-delete snapshots (which can include comment author email and IP) are now stored as a non-autoloaded option in the database instead of a JSON file under `wp-content/uploads/`. The old file location was web-root on every server and its deny-all `.htaccess` was inert on nginx, so a guessable filename could expose the snapshot to an unauthenticated request. The options table is never web-served, closing that exposure on any web server.
+* Support: the scheduled-run email report now only sends when the run actually cleaned something, so a quiet weekly run no longer emails a "No items required cleaning" notice.
+* Performance: expired-transient cleanup now pre-counts only the expired pairs once instead of counting all transient-timeout rows both before and after core's `delete_expired_transients()`, removing two redundant full scans of the options table per run.
+* Docs: reconciled the changelog, `@since` tag, and readme so the Abilities API support is consistently attributed to 1.6148.
 
 = 1.6149 =
 * Accessibility: the live-run progress bar now exposes `role="progressbar"` with `aria-valuenow/min/max` and a label, and the admin runner updates `aria-valuenow` in step with the visual width so screen-reader users hear progress during a destructive run.
