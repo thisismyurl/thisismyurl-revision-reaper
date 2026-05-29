@@ -905,24 +905,24 @@ class TIMU_Revision_Reaper {
                         <div class="postbox">
                             <h2 class="hndle"><span><?php esc_html_e( 'Configuration & Automation', 'thisismyurl-revision-reaper' ); ?></span></h2>
                             <div class="inside">
-                                <table class="form-table">
+                                <table class="form-table" role="presentation">
                                     <tr>
-                                        <th scope="row"><?php esc_html_e( 'Revisions to Keep', 'thisismyurl-revision-reaper' ); ?></th>
+                                        <th scope="row"><label for="rr-limit"><?php esc_html_e( 'Revisions to Keep', 'thisismyurl-revision-reaper' ); ?></label></th>
                                         <td><input type="number" name="rev_limit" id="rr-limit" value="<?php echo esc_attr( $current_limit ); ?>" class="small-text"></td>
                                     </tr>
                                     <tr>
-                                        <th scope="row"><?php esc_html_e( 'Include Trash', 'thisismyurl-revision-reaper' ); ?></th>
-                                        <td><input type="checkbox" name="include_trash" id="rr-trash" value="1" <?php checked( $auto_trash ); ?>></td>
+                                        <th scope="row" id="rr-trash-label"><?php esc_html_e( 'Include Trash', 'thisismyurl-revision-reaper' ); ?></th>
+                                        <td><input type="checkbox" name="include_trash" id="rr-trash" value="1" aria-labelledby="rr-trash-label" <?php checked( $auto_trash ); ?>></td>
                                     </tr>
                                     <tr>
-                                        <th scope="row"><?php esc_html_e( 'Include Spam', 'thisismyurl-revision-reaper' ); ?></th>
-                                        <td><input type="checkbox" name="include_spam" id="rr-spam" value="1" <?php checked( $auto_spam ); ?>></td>
+                                        <th scope="row" id="rr-spam-label"><?php esc_html_e( 'Include Spam', 'thisismyurl-revision-reaper' ); ?></th>
+                                        <td><input type="checkbox" name="include_spam" id="rr-spam" value="1" aria-labelledby="rr-spam-label" <?php checked( $auto_spam ); ?>></td>
                                     </tr>
                                     <tr><td colspan="2"><hr></td></tr>
                                     <tr>
-                                        <th scope="row"><?php esc_html_e( 'Enable Automation', 'thisismyurl-revision-reaper' ); ?></th>
+                                        <th scope="row" id="rr-schedule-label"><?php esc_html_e( 'Enable Automation', 'thisismyurl-revision-reaper' ); ?></th>
                                         <td>
-                                            <input type="checkbox" name="enable_schedule" value="1" <?php checked( $automation_enabled ); ?>>
+                                            <input type="checkbox" name="enable_schedule" id="rr-schedule" value="1" aria-labelledby="rr-schedule-label" <?php checked( $automation_enabled ); ?>>
                                             <?php if ( $next_run ) : ?>
                                                 <p class="description" style="color:#2271b1; font-weight:bold;">
                                                     <?php
@@ -995,7 +995,7 @@ class TIMU_Revision_Reaper {
                                     <input type="hidden" name="action" value="timu_rr_run">
                                     <p>
                                         <label>
-                                            <input type="checkbox" name="rr_backup_confirm" id="rr-backup-confirm" value="1">
+                                            <input type="checkbox" name="rr_backup_confirm" id="rr-backup-confirm" value="1" aria-controls="rr-live-run-btn">
                                             <?php esc_html_e( 'I understand a JSON snapshot will be written to uploads/revision-reaper/exports/ before deletion and I have verified my own backups are current.', 'thisismyurl-revision-reaper' ); ?>
                                         </label>
                                     </p>
@@ -1008,9 +1008,9 @@ class TIMU_Revision_Reaper {
                             <h2 class="hndle"><span><?php echo esc_html( $is_dry_run_active ? __( 'Simulation Log', 'thisismyurl-revision-reaper' ) : __( 'Live Activity Log', 'thisismyurl-revision-reaper' ) ); ?></span></h2>
                             <div class="inside">
                                 <div id="rr-progress-container" style="background:#f0f0f1; height:20px; border-radius:3px; border:1px solid #c3c4c7; margin-bottom:10px; overflow:hidden;">
-                                    <div id="rr-progress-bar" style="background:#2271b1; height:100%; width:0%;"></div>
+                                    <div id="rr-progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="<?php esc_attr_e( 'Cleanup progress', 'thisismyurl-revision-reaper' ); ?>" style="background:#2271b1; height:100%; width:0%;"></div>
                                 </div>
-                                <div id="rr-log" style="background:#f6f7f7; padding:10px; border:1px solid #dcdcde; height:200px; overflow-y:scroll; font-family:monospace;"></div>
+                                <div id="rr-log" role="log" aria-live="assertive" tabindex="0" aria-label="<?php esc_attr_e( 'Cleanup activity log', 'thisismyurl-revision-reaper' ); ?>" style="background:#f6f7f7; padding:10px; border:1px solid #dcdcde; height:200px; overflow-y:scroll; font-family:monospace;"></div>
                             </div>
                         </div>
                     </div>
