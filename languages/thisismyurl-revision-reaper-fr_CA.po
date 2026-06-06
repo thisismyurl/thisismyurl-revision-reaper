@@ -138,8 +138,8 @@ msgid "by %s"
 msgstr "par %s"
 
 #: thisismyurl-revision-reaper.php:781
-msgid "This Is My URL"
-msgstr "This Is My URL"
+msgid "Christopher Ross"
+msgstr "Christopher Ross"
 
 #: thisismyurl-revision-reaper.php:786
 msgid "Optimize performance by reaping revisions, trash, and spam using persistent settings."

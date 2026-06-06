@@ -1,4 +1,4 @@
-=== This Is My URL - Revision Reaper ===
+=== Revision Reaper by Christopher Ross ===
 Contributors: thisismyurl
 Donate link: https://github.com/sponsors/thisismyurl
 Tags: revisions, database cleanup, performance, wp cron, maintenance
@@ -9,7 +9,7 @@ Stable tag: 1.6149.0734
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Plugin URI: https://thisismyurl.com/thisismyurl-revision-reaper/
-Author: This Is My URL
+Author: Christopher Ross
 Author URI: https://thisismyurl.com/
 
 Non-destructive WordPress database cleanup for revisions, trash, spam comments, and transients with scheduled automation and reporting.
@@ -34,7 +34,7 @@ Revision Reaper helps you keep your WordPress database lean and maintainable by 
 
 = EEAT and credibility =
 
-Built by This Is My URL, a WordPress development and technical SEO practice.
+Built by Christopher Ross, a WordPress development and technical SEO practice.
 
 * WordPress.org profile: https://profiles.wordpress.org/thisismyurl/
 * GitHub profile: https://github.com/thisismyurl
