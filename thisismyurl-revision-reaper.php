@@ -2,7 +2,7 @@
 /**
  * Author:      Christopher Ross
  * Author URI:  https://thisismyurl.com/
- * Plugin Name: This Is My URL - Revision Reaper
+ * Plugin Name: Revision Reaper by Christopher Ross
  * Plugin URI:  https://thisismyurl.com/thisismyurl-revision-reaper/
  * Description: Non-destructive database optimization with persistent settings, custom scheduling, and email reporting.
  * Version:     1.6149.0734
@@ -890,9 +890,9 @@ class TIMU_Revision_Reaper {
                 <small style="font-size: 0.5em; font-weight: normal; vertical-align: middle; margin-left: 10px; color: #646970;">
                     <?php
                     printf(
-                        /* translators: %s: brand name "This Is My URL" */
+                        /* translators: %s: brand name "Christopher Ross" */
                         esc_html__( 'by %s', 'thisismyurl-revision-reaper' ),
-                        esc_html__( 'This Is My URL', 'thisismyurl-revision-reaper' )
+                        esc_html__( 'Christopher Ross', 'thisismyurl-revision-reaper' )
                     );
                     ?>
                 </small>

@@ -141,7 +141,7 @@ msgid "by %s"
 msgstr ""
 
 #: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:781
-msgid "This Is My URL"
+msgid "Christopher Ross"
 msgstr ""
 
 #: /workspaces/site-thisismyurl/wp-content/plugins/thisismyurl-revision-reaper/thisismyurl-revision-reaper.php:786

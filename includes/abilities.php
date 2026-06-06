@@ -1,6 +1,6 @@
 <?php
 /**
- * WP 7 Abilities API registration for This Is My URL - Revision Reaper.
+ * WP 7 Abilities API registration for Christopher Ross - Revision Reaper.
  *
  * Exposes the plugin's database-cleanup pass (revisions, trashed posts,
  * spam comments, expired transients, table optimization) as a discoverable,
