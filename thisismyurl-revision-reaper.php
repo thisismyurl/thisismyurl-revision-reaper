@@ -128,7 +128,7 @@ class TIMU_Revision_Reaper {
 
     public static function add_plugin_action_links( $links ) {
         $custom_links = array(
-            '<a href="' . admin_url( 'tools.php?page=revision-reaper' ) . '">' . esc_html__( 'Settings', 'thisismyurl-revision-reaper' ) . '</a>',
+            '<a href="' . esc_url( admin_url( 'tools.php?page=revision-reaper' ) ) . '">' . esc_html__( 'Settings', 'thisismyurl-revision-reaper' ) . '</a>',
             '<a href="' . esc_url( 'https://github.com/sponsors/thisismyurl' ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Sponsor', 'thisismyurl-revision-reaper' ) . '</a>',
         );
         return array_merge( $custom_links, $links );
