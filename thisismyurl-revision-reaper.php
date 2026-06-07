@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'TIMU_REVISION_REAPER_VERSION' ) ) {
-    define( 'TIMU_REVISION_REAPER_VERSION', '1.6149.0734' );
+    define( 'TIMU_REVISION_REAPER_VERSION', '1.6158.1440' );
 }
 
 require_once __DIR__ . '/includes/class-exporter.php';
