@@ -61,10 +61,12 @@ class TIMU_Revision_Reaper_CLI {
 		$max     = isset( $assoc_args['max'] ) ? (int) $assoc_args['max'] : 1000;
 		$include = isset( $assoc_args['include'] ) ? array_map( 'trim', explode( ',', $assoc_args['include'] ) ) : array( 'revisions', 'trash', 'spam' );
 
-		$settings = array(
-			'limit'         => max( 0, $limit ),
-			'include_trash' => in_array( 'trash', $include, true ) ? 1 : 0,
-			'include_spam'  => in_array( 'spam', $include, true ) ? 1 : 0,
+		$pt_limits = get_option( 'timu_rr_post_type_limits', array() );
+		$settings  = array(
+			'limit'            => max( 0, $limit ),
+			'include_trash'    => in_array( 'trash', $include, true ) ? 1 : 0,
+			'include_spam'     => in_array( 'spam', $include, true ) ? 1 : 0,
+			'post_type_limits' => is_array( $pt_limits ) ? $pt_limits : array(),
 		);
 
 		// "revisions" is implicit in the scan; --include can opt out by

@@ -5,15 +5,13 @@
  * Plugin Name: Revision Reaper
  * Plugin URI:  https://thisismyurl.com/thisismyurl-revision-reaper/
  * Description: Non-destructive database optimization with persistent settings, custom scheduling, and email reporting.
- * Version:     0.6123
+ * Version:     0.6174.1642
  * Requires at least: 6.4
  * Requires PHP: 8.1
  * Text Domain: thisismyurl-revision-reaper
  * Domain Path: /languages
  * License:           GPL-2.0-or-later
- * GitHub Plugin URI: https://github.com/thisismyurl/thisismyurl-revision-reaper
- * Primary Branch:    main
- * Update URI:        https://github.com/thisismyurl/thisismyurl-revision-reaper
+ * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * @package Thisismyurl_Revision_Reaper
  */
 
@@ -22,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'TIMU_REVISION_REAPER_VERSION' ) ) {
-    define( 'TIMU_REVISION_REAPER_VERSION', '0.6123' );
+    define( 'TIMU_REVISION_REAPER_VERSION', '0.6174.1642' );
 }
 
 require_once __DIR__ . '/includes/class-exporter.php';
@@ -98,10 +96,15 @@ class TIMU_Revision_Reaper {
         $is_dry_run     = false;
 
         if ( $run_intent ) {
+            $ea_pt_limits = get_option( 'timu_rr_post_type_limits', array() );
+            if ( ! is_array( $ea_pt_limits ) ) {
+                $ea_pt_limits = array();
+            }
             $settings   = array(
-                'limit'         => (int) get_option( 'timu_rr_limit', 3 ),
-                'include_trash' => (int) get_option( 'timu_rr_auto_trash', 0 ),
-                'include_spam'  => (int) get_option( 'timu_rr_auto_spam', 0 ),
+                'limit'            => (int) get_option( 'timu_rr_limit', 3 ),
+                'include_trash'    => (int) get_option( 'timu_rr_auto_trash', 0 ),
+                'include_spam'     => (int) get_option( 'timu_rr_auto_spam', 0 ),
+                'post_type_limits' => $ea_pt_limits,
             );
             $items      = self::get_eligible_items( $settings );
             $is_dry_run = ( 'dry' === $run_intent );
@@ -136,13 +139,18 @@ class TIMU_Revision_Reaper {
      * Automated cleanup logic with email reporting.
      */
     public static function do_scheduled_cleanup() {
+        $post_type_limits = get_option( 'timu_rr_post_type_limits', array() );
+        if ( ! is_array( $post_type_limits ) ) {
+            $post_type_limits = array();
+        }
         $settings = array(
-            'limit'         => get_option( 'timu_rr_limit', 3 ),
-            'include_trash' => get_option( 'timu_rr_auto_trash', 0 ),
-            'include_spam'  => get_option( 'timu_rr_auto_spam', 0 ),
+            'limit'            => get_option( 'timu_rr_limit', 3 ),
+            'include_trash'    => get_option( 'timu_rr_auto_trash', 0 ),
+            'include_spam'     => get_option( 'timu_rr_auto_spam', 0 ),
+            'post_type_limits' => $post_type_limits,
         );
         $email = get_option( 'timu_rr_report_email', get_option( 'admin_email' ) );
-        
+
         $items = self::get_eligible_items( $settings );
         $log = array();
 
@@ -176,8 +184,13 @@ class TIMU_Revision_Reaper {
                 wp_trash_comment( $item['id'] );
                 $log[] = "Spam Comment #{$item['id']} moved to comment trash";
             } else {
+                // Resolve effective keep limit: per-post-type beats global.
+                $post_type    = get_post_type( $item['id'] );
+                $keep_limit   = ( $post_type && isset( $post_type_limits[ $post_type ] ) && $post_type_limits[ $post_type ] > 0 )
+                    ? (int) $post_type_limits[ $post_type ]
+                    : (int) $settings['limit'];
                 $revisions = wp_get_post_revisions( $item['id'] );
-                $to_remove = array_slice( $revisions, $settings['limit'] );
+                $to_remove = array_slice( $revisions, $keep_limit );
                 foreach ( $to_remove as $rev ) {
                     // Honest ROI: count actual bytes the row contributed
                     // before we drop it. Sum of post_content lengths is the
@@ -391,8 +404,11 @@ class TIMU_Revision_Reaper {
         $remaining = (int) $caps['max_items'];
 
         // 1. Posts whose revision count exceeds the keep limit.
-        $paged    = 1;
-        $rev_done = false;
+        $paged            = 1;
+        $rev_done         = false;
+        $post_type_limits = isset( $settings['post_type_limits'] ) && is_array( $settings['post_type_limits'] )
+            ? $settings['post_type_limits']
+            : array();
         while ( ! $rev_done && $remaining > 0 ) {
             $q = new WP_Query( array(
                 'post_type'              => $caps['post_types'],
@@ -413,7 +429,12 @@ class TIMU_Revision_Reaper {
 
             foreach ( $q->posts as $post_id ) {
                 $revisions = wp_get_post_revisions( $post_id, array( 'fields' => 'ids' ) );
-                if ( count( $revisions ) > (int) $settings['limit'] ) {
+                // Resolve effective keep limit: per-post-type beats global.
+                $post_type  = get_post_type( $post_id );
+                $keep_limit = ( $post_type && isset( $post_type_limits[ $post_type ] ) && $post_type_limits[ $post_type ] > 0 )
+                    ? (int) $post_type_limits[ $post_type ]
+                    : (int) $settings['limit'];
+                if ( count( $revisions ) > $keep_limit ) {
                     $items[]    = array( 'id' => (int) $post_id, 'type' => 'revision' );
                     $remaining--;
                     if ( $remaining <= 0 ) {
@@ -551,8 +572,21 @@ class TIMU_Revision_Reaper {
 
         $id         = absint( $_POST['item_id'] ?? 0 );
         $type       = isset( $_POST['item_type'] ) ? sanitize_key( wp_unslash( $_POST['item_type'] ) ) : '';
-        $limit      = absint( $_POST['limit'] ?? 3 );
         $is_dry_run = isset( $_POST['dry_run'] ) && 'true' === $_POST['dry_run'];
+
+        // Resolve revision-keep limit server-side — never trust the client-supplied value.
+        // For revision items: apply the per-post-type limit when one is configured.
+        $global_limit  = (int) get_option( 'timu_rr_limit', 3 );
+        $pt_limits     = get_option( 'timu_rr_post_type_limits', array() );
+        $pt_limits     = is_array( $pt_limits ) ? $pt_limits : array();
+        if ( 'revision' === $type && $id > 0 ) {
+            $post_type = get_post_type( get_post( $id )->post_parent ?? $id );
+            $limit     = ( $post_type && isset( $pt_limits[ $post_type ] ) )
+                ? (int) $pt_limits[ $post_type ]
+                : $global_limit;
+        } else {
+            $limit = $global_limit;
+        }
 
         // Whitelist item types — anything else is rejected.
         if ( ! in_array( $type, array( 'revision', 'trash', 'spam' ), true ) ) {
@@ -625,10 +659,15 @@ class TIMU_Revision_Reaper {
             wp_send_json_error( esc_html__( 'Unauthorized', 'thisismyurl-revision-reaper' ), 403 );
         }
 
+        $pt_limits = get_option( 'timu_rr_post_type_limits', array() );
+        if ( ! is_array( $pt_limits ) ) {
+            $pt_limits = array();
+        }
         $settings = array(
-            'limit'         => (int) get_option( 'timu_rr_limit', 3 ),
-            'include_trash' => (int) get_option( 'timu_rr_auto_trash', 0 ),
-            'include_spam'  => (int) get_option( 'timu_rr_auto_spam', 0 ),
+            'limit'            => (int) get_option( 'timu_rr_limit', 3 ),
+            'include_trash'    => (int) get_option( 'timu_rr_auto_trash', 0 ),
+            'include_spam'     => (int) get_option( 'timu_rr_auto_spam', 0 ),
+            'post_type_limits' => $pt_limits,
         );
 
         $items = self::get_eligible_items( $settings );
@@ -716,6 +755,24 @@ class TIMU_Revision_Reaper {
             update_option( 'timu_rr_auto_spam', isset( $_POST['include_spam'] ) ? 1 : 0 );
             update_option( 'timu_rr_report_email', sanitize_email( wp_unslash( $_POST['report_email'] ?? '' ) ) );
 
+            // Per-post-type revision limits.
+            $raw_pt_limits    = isset( $_POST['rr_pt_limit'] ) && is_array( $_POST['rr_pt_limit'] )
+                ? wp_unslash( $_POST['rr_pt_limit'] )  // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+                : array();
+            $clean_pt_limits  = array();
+            $allowed_pt       = self::get_target_post_types();
+            foreach ( $raw_pt_limits as $pt_slug => $pt_limit_raw ) {
+                $pt_slug = sanitize_key( $pt_slug );
+                if ( ! in_array( $pt_slug, $allowed_pt, true ) ) {
+                    continue;
+                }
+                $pt_limit = absint( $pt_limit_raw );
+                if ( $pt_limit > 0 ) {
+                    $clean_pt_limits[ $pt_slug ] = $pt_limit;
+                }
+            }
+            update_option( 'timu_rr_post_type_limits', $clean_pt_limits );
+
             // Automation persistent setting.
             $enable_automation = isset( $_POST['enable_schedule'] ) ? 1 : 0;
             update_option( 'timu_rr_enable_automation', $enable_automation );
@@ -756,8 +813,17 @@ class TIMU_Revision_Reaper {
         $saved_date          = get_option( 'timu_rr_schedule_date', wp_date( 'Y-m-d' ) );
         $saved_time          = get_option( 'timu_rr_schedule_time', '00:00' );
         $saved_recurrence    = get_option( 'timu_rr_schedule_recurrence', 'weekly' );
+        $pt_limits           = get_option( 'timu_rr_post_type_limits', array() );
+        if ( ! is_array( $pt_limits ) ) {
+            $pt_limits = array();
+        }
 
-        $settings = array( 'limit' => $current_limit, 'include_trash' => $auto_trash, 'include_spam' => $auto_spam );
+        $settings = array(
+            'limit'            => $current_limit,
+            'include_trash'    => $auto_trash,
+            'include_spam'     => $auto_spam,
+            'post_type_limits' => $pt_limits,
+        );
 
         // Run-mode is delivered via transient (set by handle_run_post) so it
         // can't be replayed from a URL or bookmarked. ?reap=1 is just a flag
@@ -861,6 +927,66 @@ class TIMU_Revision_Reaper {
                                     </tr>
                                 </table>
                                 
+                                <p class="submit">
+                                    <input type="submit" name="rr_save_settings" class="button button-secondary" value="<?php esc_attr_e( 'Save All Settings & Schedule', 'thisismyurl-revision-reaper' ); ?>">
+                                </p>
+                            </div>
+                        </div>
+                        </form>
+
+                        <form method="post">
+                        <?php wp_nonce_field( 'timu_rr_save_settings', 'timu_rr_settings_nonce' ); ?>
+                        <div class="postbox">
+                            <h2 class="hndle"><span><?php esc_html_e( 'Per-Post-Type Revision Limits', 'thisismyurl-revision-reaper' ); ?></span></h2>
+                            <div class="inside">
+                                <p class="description">
+                                    <?php
+                                    printf(
+                                        /* translators: %d: the global revisions-to-keep number */
+                                        esc_html__( 'Set a revision limit for individual post types. Leave a field empty to use the global limit (%d). Values here override the global limit for that post type only.', 'thisismyurl-revision-reaper' ),
+                                        (int) $current_limit
+                                    );
+                                    ?>
+                                </p>
+                                <table class="form-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col"><?php esc_html_e( 'Post Type', 'thisismyurl-revision-reaper' ); ?></th>
+                                            <th scope="col"><?php esc_html_e( 'Revision Limit', 'thisismyurl-revision-reaper' ); ?></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    <?php
+                                    $target_post_types = self::get_target_post_types();
+                                    foreach ( $target_post_types as $pt_slug ) {
+                                        $pt_obj   = get_post_type_object( $pt_slug );
+                                        $pt_label = $pt_obj ? $pt_obj->labels->singular_name : $pt_slug;
+                                        $pt_value = isset( $pt_limits[ $pt_slug ] ) ? (int) $pt_limits[ $pt_slug ] : '';
+                                        ?>
+                                        <tr>
+                                            <td>
+                                                <label for="rr-pt-limit-<?php echo esc_attr( $pt_slug ); ?>">
+                                                    <?php echo esc_html( $pt_label ); ?>
+                                                    <code style="font-size:0.85em; color:#646970;">(<?php echo esc_html( $pt_slug ); ?>)</code>
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <input
+                                                    type="number"
+                                                    id="rr-pt-limit-<?php echo esc_attr( $pt_slug ); ?>"
+                                                    name="rr_pt_limit[<?php echo esc_attr( $pt_slug ); ?>]"
+                                                    value="<?php echo esc_attr( (string) $pt_value ); ?>"
+                                                    min="1"
+                                                    placeholder="<?php echo esc_attr( (string) (int) $current_limit ); ?>"
+                                                    class="small-text"
+                                                >
+                                            </td>
+                                        </tr>
+                                        <?php
+                                    }
+                                    ?>
+                                    </tbody>
+                                </table>
                                 <p class="submit">
                                     <input type="submit" name="rr_save_settings" class="button button-secondary" value="<?php esc_attr_e( 'Save All Settings & Schedule', 'thisismyurl-revision-reaper' ); ?>">
                                 </p>

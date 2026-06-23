@@ -2,9 +2,9 @@
 Contributors: thisismyurl
 Tags: revisions, database cleanup, performance, wp cron, maintenance
 Requires at least: 6.4
-Tested up to: 6.9
+Tested up to: 6.8
 Requires PHP: 8.1
-Stable tag: 0.6123
+Stable tag: 0.6174.1642
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Plugin URI: https://thisismyurl.com/thisismyurl-revision-reaper/
@@ -89,6 +89,11 @@ I review PRs thoughtfully and appreciate well-tested contributions. Contributing
 
 
 == Changelog ==
+
+= 0.6174.1642 =
+* Feature: per-post-type revision limits — new settings table with one input per registered post type; values override the global limit for that type only.
+* Feature: new `timu_rr_post_type_limits` option (serialized array keyed by post-type slug) saved alongside existing settings.
+* Feature: `get_eligible_items()`, `do_scheduled_cleanup()`, `ajax_pre_run_export()`, and `enqueue_admin_assets()` all resolve per-type limits before scanning/acting.
 
 = 0.6123 =
 * Security: added nonce + capability checks on the settings POST handler.

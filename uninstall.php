@@ -29,7 +29,8 @@ $options = array(
     'timu_rr_enable_automation',
     'timu_rr_schedule_date',
     'timu_rr_schedule_time',
-    'timu_rr_schedule_recurrence'
+    'timu_rr_schedule_recurrence',
+    'timu_rr_post_type_limits',
 );
 
 foreach ( $options as $option ) {
