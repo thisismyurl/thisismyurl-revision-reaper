@@ -1,14 +1,15 @@
-=== Revision Reaper ===
+=== Revision Reaper by Christopher Ross ===
 Contributors: thisismyurl
+Donate link: https://github.com/sponsors/thisismyurl
 Tags: revisions, database cleanup, performance, wp cron, maintenance
 Requires at least: 6.4
 Tested up to: 6.8
 Requires PHP: 8.1
-Stable tag: 0.6174.1642
+Stable tag: 1.6164.1421
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Plugin URI: https://thisismyurl.com/thisismyurl-revision-reaper/
-Author: This Is My URL
+Author: Christopher Ross
 Author URI: https://thisismyurl.com/
 
 Non-destructive WordPress database cleanup for revisions, trash, spam comments, and transients with scheduled automation and reporting.
@@ -33,7 +34,7 @@ Revision Reaper helps you keep your WordPress database lean and maintainable by 
 
 = EEAT and credibility =
 
-Built by This Is My URL, a WordPress development and technical SEO practice.
+Built by Christopher Ross, a WordPress development and technical SEO practice.
 
 * WordPress.org profile: https://profiles.wordpress.org/thisismyurl/
 * GitHub profile: https://github.com/thisismyurl
@@ -56,7 +57,7 @@ No. It targets revisions, trash, spam/unapproved comments, and expired transient
 Yes. Configure interval and run size in plugin settings.
 
 = Is this suitable for multisite? =
-The plugin loads and runs per-site on multisite (not network-activated as a single switch). Each site keeps its own settings, schedule, and pre-delete export directory under its own `wp-content/uploads/`. Multisite is not part of the formal test matrix yet — please test in a staging network before rolling to production. Network-wide reaping (one cron pass that walks every site) is on the roadmap and tracked on the GitHub issue list.
+The plugin loads and runs per-site on multisite (not network-activated as a single switch). Each site keeps its own settings, schedule, and pre-delete snapshots in its own options table. Multisite is not part of the formal test matrix yet — please test in a staging network before rolling to production. Network-wide reaping (one cron pass that walks every site) is on the roadmap and tracked on the GitHub issue list.
 
 == Support, Contributing & Sponsorship ==
 
@@ -90,10 +91,30 @@ I review PRs thoughtfully and appreciate well-tested contributions. Contributing
 
 == Changelog ==
 
-= 0.6174.1642 =
-* Feature: per-post-type revision limits — new settings table with one input per registered post type; values override the global limit for that type only.
-* Feature: new `timu_rr_post_type_limits` option (serialized array keyed by post-type slug) saved alongside existing settings.
-* Feature: `get_eligible_items()`, `do_scheduled_cleanup()`, `ajax_pre_run_export()`, and `enqueue_admin_assets()` all resolve per-type limits before scanning/acting.
+= 1.6150 =
+* Privacy: pre-delete snapshots (which can include comment author email and IP) are now stored as a non-autoloaded option in the database instead of a JSON file under `wp-content/uploads/`. The old file location was web-root on every server and its deny-all `.htaccess` was inert on nginx, so a guessable filename could expose the snapshot to an unauthenticated request. The options table is never web-served, closing that exposure on any web server.
+* Support: the scheduled-run email report now only sends when the run actually cleaned something, so a quiet weekly run no longer emails a "No items required cleaning" notice.
+* Performance: expired-transient cleanup now pre-counts only the expired pairs once instead of counting all transient-timeout rows both before and after core's `delete_expired_transients()`, removing two redundant full scans of the options table per run.
+* Docs: reconciled the changelog, `@since` tag, and readme so the Abilities API support is consistently attributed to 1.6148.
+
+= 1.6149 =
+* Accessibility: the live-run progress bar now exposes `role="progressbar"` with `aria-valuenow/min/max` and a label, and the admin runner updates `aria-valuenow` in step with the visual width so screen-reader users hear progress during a destructive run.
+* Accessibility: the activity log is now a focusable live region (`role="log"`, `aria-live="assertive"`, `tabindex="0"`, label) so failures interrupt and keyboard users can scroll it.
+* Accessibility: marked the configuration layout table `role="presentation"`, associated the Revisions-to-Keep field with its label, and gave the Include Trash, Include Spam, and Enable Automation checkboxes programmatic names via `aria-labelledby`.
+* Accessibility: linked the backup-acknowledgement checkbox to the gated Run Now (Live) button with `aria-controls`.
+
+= 1.6148 =
+* Added WordPress 7 Abilities API support: the `thisismyurl-revision-reaper/clean` ability runs a full cleanup pass (revisions, trashed posts, spam comments, expired transients, table optimization) and returns per-category counts plus bytes reclaimed, with an optional `dry_run` preview. Guarded by the `manage_options` capability.
+* Extracted the shared cleanup routine into a single `TIMU_Revision_Reaper::run_cleanup()` method so the scheduled cron and the new ability funnel through one implementation.
+
+= 1.6147 =
+* Unified plugin versioning to the x.Yddd calendar-version scheme.
+* Confirmed compatibility with WordPress 7.0.
+
+
+= 1.6143 =
+* First full release (class 1). The 0.6xxx line was pre-release on the `x.Yddd` scheme.
+* Standardized the donation link to GitHub Sponsors.
 
 = 0.6123 =
 * Security: added nonce + capability checks on the settings POST handler.

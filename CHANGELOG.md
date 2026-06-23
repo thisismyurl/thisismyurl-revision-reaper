@@ -5,42 +5,28 @@ follows a `x.Yddd` version scheme — `x` is the release class (`0` =
 pre-release, `1` = full), `Y` is the last digit of the year, `ddd` is the
 Julian day of the year (001–366).
 
-## 0.6174.1642 — 2026-06-23
+## 1.6164.1421 — 2026-06-23 (WP.org gate fixes)
 
-### Fixes (WP.org gate remediation)
+### Fixes
 
-- `updater.php`: added `defined( 'ABSPATH' ) || exit` guard (direct file access blocked).
 - Main plugin header: removed `GitHub Plugin URI`, `Primary Branch`, and `Update URI` fields;
-  added `License URI` field. Strips GitHub-updater metadata required before WP.org submission.
-- `.distignore`: added `updater.php` and `assets/*.png` so the GitHub updater and SVN banner/
-  icon images are excluded from the distributed zip.
-- `readme.txt`: corrected `Tested up to` from `6.9` (unreleased) to `6.8`.
-- `uninstall.php`: added `timu_rr_post_type_limits` to the options cleanup list so the new
-  per-type limits option is fully removed on plugin deletion.
+  added `License URI: https://www.gnu.org/licenses/gpl-2.0.html`.
+- `.distignore`: added `assets/*.png` so SVN banner/icon images are excluded from the
+  distributed zip (they belong in the SVN `/assets` directory, not inside `trunk/`).
+- `readme.txt`: corrected `Tested up to` from `7.0` (unreleased at time of gate) to `6.8`.
+- `uninstall.php`: added `timu_rr_post_type_limits` to the options cleanup array so the
+  per-post-type limits option is removed on plugin deletion.
 - `ajax_purge_item()`: revision-keep limit is now resolved server-side (per-type from
   `timu_rr_post_type_limits`, falling back to `timu_rr_limit`) instead of trusting the
   client-supplied `$_POST['limit']` value.
 - `class-cli.php` `run` command: loads and passes `timu_rr_post_type_limits` in the
   `$settings` array so WP-CLI runs honour per-post-type limits.
 
-### Features
+## 1.6143 — 2026-05-23
 
-- Per-post-type revision limits. A new "Per-Post-Type Revision Limits" section
-  on the settings screen shows one number input per registered public post type
-  (posts, pages, and any active CPTs). Values override the global limit for
-  that post type only; empty inputs fall back to the global limit.
-- New option `timu_rr_post_type_limits` (serialized array keyed by post-type
-  slug) stores per-type limits. Saved alongside all existing settings via the
-  same nonce-gated form; input sanitized with `sanitize_key()` + `absint()`,
-  and whitelisted against `get_target_post_types()` before storage.
-- `get_eligible_items()` resolves the effective keep limit per-post before
-  calling `wp_get_post_revisions()`: per-type value is used when set and > 0,
-  otherwise falls back to the global `timu_rr_limit`.
-- `do_scheduled_cleanup()` applies the same per-type resolution when slicing
-  revisions to remove during scheduled runs.
-- `ajax_pre_run_export()` and `enqueue_admin_assets()` both forward
-  `post_type_limits` in the settings array so preview/export passes use the
-  same effective limits as the live run.
+### Changed
+- Promoted to a full release (class 1). The `0.6xxx` line was pre-release on the `x.Yddd` scheme.
+- Standardized the donation link to GitHub Sponsors (`https://github.com/sponsors/thisismyurl`).
 
 ## 0.6123 — 2026-05-03
 

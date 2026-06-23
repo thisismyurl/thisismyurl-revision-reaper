@@ -63,7 +63,9 @@
 				nonce: nonce
 			} ).done( function ( res ) {
 				completed++;
-				$( '#rr-progress-bar' ).css( 'width', Math.round( ( completed / total ) * 100 ) + '%' );
+				var percent = Math.round( ( completed / total ) * 100 );
+				// Keep the visual width and the assistive-tech value in lockstep.
+				$( '#rr-progress-bar' ).css( 'width', percent + '%' ).attr( 'aria-valuenow', percent );
 				$( '#rr-log' ).prepend( '<div>' + ( res && res.data ? res.data : '' ) + '</div>' );
 				processNext();
 			} );

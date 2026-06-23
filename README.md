@@ -1,133 +1,53 @@
-# Revision Reaper by This Is My URL
+# Revision Reaper
 
-[![CI](https://github.com/thisismyurl/thisismyurl-revision-reaper/actions/workflows/ci.yml/badge.svg)](https://github.com/thisismyurl/thisismyurl-revision-reaper/actions/workflows/ci.yml) [![WordPress Tested](https://img.shields.io/badge/WordPress-6.9%2B-blue)](https://wordpress.org/) [![License](https://img.shields.io/badge/License-GPL--2.0-blue)](LICENSE)
+[![CI](https://github.com/thisismyurl/thisismyurl-revision-reaper/actions/workflows/ci.yml/badge.svg)](https://github.com/thisismyurl/thisismyurl-revision-reaper/actions/workflows/ci.yml) [![WordPress](https://img.shields.io/badge/WordPress-6.4%2B-blue)](https://wordpress.org/) [![License](https://img.shields.io/badge/License-GPL--2.0-blue)](LICENSE)
 
+Removes old post revisions, trashed items, spam comments, and stale transients from your WordPress database on a schedule you set.
 
-A WordPress database cleanup plugin that removes post revisions, trash, spam comments, and transients on a safe, configurable schedule — keeping your database lean without risking content loss.
+## What it does
 
-## Features
-
-- **Revision cleanup:** Remove old post revisions beyond a configurable threshold.
-- **Trash cleanup:** Empty trashed posts and pages on schedule.
-- **Spam cleanup:** Automatically clear spam and unapproved comments.
-- **Transient cleanup:** Remove stale transients from the options table.
-- **Scheduled automation:** WP-Cron integration with configurable intervals.
-- **Non-destructive:** Only removes content that WordPress itself considers safe to delete.
-- **ROI reporting:** Shows database size reduction and estimated performance impact.
-- **Dry-run preview:** See what would be removed before committing to cleanup.
+- Removes old post revisions past a keep count you choose
+- Empties trashed posts and pages on schedule
+- Clears spam and unapproved comments
+- Deletes expired transients from the options table
+- Runs on WP-Cron at an interval you configure
+- Shows a dry-run preview so you can see what would go before anything is deleted
+- Reports how much the database shrank after a cleanup
 
 ## Requirements
 
-- WordPress 6.0+
-- PHP 7.4+
+- WordPress 6.4 or later
+- PHP 8.1 or later
 
 ## Installation
 
 1. Upload the plugin to `/wp-content/plugins/thisismyurl-revision-reaper/`.
-2. Activate through the WordPress Plugins screen.
-3. Go to **Tools > Revision Reaper**.
-4. Configure cleanup thresholds and scheduling.
-5. Run a dry-run preview, then enable scheduled automation.
+2. Activate it from the WordPress Plugins screen.
+3. Open **Tools > Revision Reaper**.
+4. Set your cleanup thresholds and schedule.
+5. Run a dry-run preview first, then turn on the scheduled cleanup.
 
-## Safety Philosophy
+## What it won't touch
 
-Revision Reaper only removes data WordPress considers transient or redundant:
-- Post revisions beyond your configured keep count.
-- Items in WordPress Trash (already flagged for deletion by users).
-- Spam and unapproved comments.
-- Expired transients from the database.
+Revision Reaper only deletes data WordPress already treats as redundant or temporary:
 
-No published content, media, or user data is ever touched.
+- Post revisions beyond the keep count you set
+- Items already sitting in the Trash, which a user flagged for deletion
+- Spam and unapproved comments
+- Expired transients
+
+Published content, media, and user data are never removed.
 
 ## Versioning
 
-This plugin uses the format `1.Yddd`:
-- `Y` = last digit of the year
-- `ddd` = Julian day number
+Versions follow `X.Yjjj.hhmm` — year, Julian day, 24-hour time of the build.
 
-## Standards
+## About
 
-- Direct access protection with ABSPATH checks.
-- Capability checks for all admin actions.
-- Escaping and sanitization aligned with WordPress coding standards.
+Revision Reaper is built and maintained by [Christopher Ross](https://thisismyurl.com/). I build focused WordPress tools for problems that keep showing up across real sites. No tracking, no ads, no upsells.
 
----
-
-## Support and Contribute
-
-### Ways to Support
-
-I build these tools because WordPress sites in the wild keep hitting the same problems, and a focused plugin is usually the right fix. There's no tracking, no ads, and you don't need to pay to use these plugins.
-
-If you find them helpful, here are some genuine ways to support the work:
-
-- **Sponsor if it fits your budget:** You can sponsor the project through [GitHub Sponsors](https://github.com/sponsors/thisismyurl). Sponsorship helps, but it's always optional.
-- **Contribute code or ideas:** Opening a pull request, reporting an issue, or testing edge cases is just as valuable as sponsorship. Helping me improve these plugins is a great way to contribute.
-- **Share your experience:** A follow on [WordPress.org](https://profiles.wordpress.org/thisismyurl/), [GitHub](https://github.com/thisismyurl), or [LinkedIn](https://linkedin.com/in/thisismyurl) helps others find this work.
-
-### Report Issues and Questions
-
-Found a bug? Want to suggest a feature? Just curious how something works?
-
-- **File an issue:** Use the [Issues](../../issues) tab. Include your WordPress and PHP version, and steps to reproduce.
-- **Start a discussion:** Use the [Discussions](../../discussions) tab for questions, ideas, or general conversation about the plugin.
-
-### Contributing Code
-
-Code contributions are welcome and genuinely valuable. Here's the workflow:
-
-1. **Fork this repository** and clone it locally.
-2. **Create a feature branch** with a clear name (e.g., `feature/improve-safety-check`).
-3. **Make your changes** and test thoroughly on edge cases.
-4. **Follow WordPress coding standards** — run `composer run lint:phpcs` before opening a PR.
-5. **Open a pull request** with a clear description of what changed and why.
-
-I review PRs thoughtfully and appreciate well-tested contributions. Contributing is never required, but it's genuinely helpful.
-
----
-
-
-## About This Is My URL
-
-This plugin supports the work I do at [This Is My URL](https://thisismyurl.com/wordpress-website-maintenance/), where I help WordPress teams build secure, performant, and maintainable sites.
-
-This plugin is built and maintained by [This Is My URL](https://thisismyurl.com/), a WordPress development and technical SEO practice. I'm Christopher Ross, a WordPress developer and technical SEO specialist with 30 years of experience on the open web (since 1996) and 19 years on WordPress (since 2007).
-
-### My Background
-
-- **30 years on the open web** (since 1996), with 19 of those years on WordPress (since 2007)
-- **WordPress contributor since 2007** — plugins published on .org, code shipped to media, education, and government deployments
-- **Technical SEO practitioner** helping sites improve performance, security, and search visibility
-- **Training specialist** at M.L. Campbell — building learning systems that ship, not slides that don't
-
-I believe in straightforward solutions that work. No hype. No unnecessary complexity.
-
-### Ways to Connect
-
-- **WordPress.org profile:** [profiles.wordpress.org/thisismyurl](https://profiles.wordpress.org/thisismyurl/)
-- **GitHub:** [github.com/thisismyurl](https://github.com/thisismyurl)
-- **Website:** [thisismyurl.com](https://thisismyurl.com/)
-- **LinkedIn:** [linkedin.com/in/thisismyurl](https://linkedin.com/in/thisismyurl)
-
-
-## Contributors
-
-- **Christopher Ross** ([@thisismyurl](https://github.com/thisismyurl)) — author and maintainer
-- **Contributors:** Thanks to everyone who's reported issues, tested edge cases, and contributed code
+**WordPress.org:** [profiles.wordpress.org/thisismyurl](https://profiles.wordpress.org/thisismyurl/) · **GitHub:** [github.com/thisismyurl](https://github.com/thisismyurl) · **LinkedIn:** [linkedin.com/in/thisismyurl](https://linkedin.com/in/thisismyurl)
 
 ## License
 
-GPL-2.0-or-later — see [LICENSE](LICENSE) or [gnu.org/licenses/gpl-2.0.html](https://www.gnu.org/licenses/gpl-2.0.html).
-
-## Documentation
-
-- [readme.txt](readme.txt)
-- [CONTRIBUTING.md](CONTRIBUTING.md)
-- [SECURITY.md](SECURITY.md)
-- [SUPPORT.md](SUPPORT.md)
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-
-
----
-*This project follows the [10 Core Pillars](PILLARS.md). Support quality work [here](https://github.com/sponsors/thisismyurl).*
-
+GPL-2.0-or-later. See [LICENSE](LICENSE).

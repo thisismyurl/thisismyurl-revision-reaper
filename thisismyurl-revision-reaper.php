@@ -2,10 +2,10 @@
 /**
  * Author:      Christopher Ross
  * Author URI:  https://thisismyurl.com/
- * Plugin Name: Revision Reaper
+ * Plugin Name: Revision Reaper by Christopher Ross
  * Plugin URI:  https://thisismyurl.com/thisismyurl-revision-reaper/
  * Description: Non-destructive database optimization with persistent settings, custom scheduling, and email reporting.
- * Version:     0.6174.1642
+ * Version:     1.6164.1421
  * Requires at least: 6.4
  * Requires PHP: 8.1
  * Text Domain: thisismyurl-revision-reaper
@@ -20,11 +20,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'TIMU_REVISION_REAPER_VERSION' ) ) {
-    define( 'TIMU_REVISION_REAPER_VERSION', '0.6174.1642' );
+    define( 'TIMU_REVISION_REAPER_VERSION', '1.6164.1421' );
 }
 
 require_once __DIR__ . '/includes/class-exporter.php';
 require_once __DIR__ . '/includes/class-site-health.php';
+require_once __DIR__ . '/includes/abilities.php';
 
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
     require_once __DIR__ . '/includes/class-cli.php';
@@ -96,15 +97,10 @@ class TIMU_Revision_Reaper {
         $is_dry_run     = false;
 
         if ( $run_intent ) {
-            $ea_pt_limits = get_option( 'timu_rr_post_type_limits', array() );
-            if ( ! is_array( $ea_pt_limits ) ) {
-                $ea_pt_limits = array();
-            }
             $settings   = array(
-                'limit'            => (int) get_option( 'timu_rr_limit', 3 ),
-                'include_trash'    => (int) get_option( 'timu_rr_auto_trash', 0 ),
-                'include_spam'     => (int) get_option( 'timu_rr_auto_spam', 0 ),
-                'post_type_limits' => $ea_pt_limits,
+                'limit'         => (int) get_option( 'timu_rr_limit', 3 ),
+                'include_trash' => (int) get_option( 'timu_rr_auto_trash', 0 ),
+                'include_spam'  => (int) get_option( 'timu_rr_auto_spam', 0 ),
             );
             $items      = self::get_eligible_items( $settings );
             $is_dry_run = ( 'dry' === $run_intent );
@@ -130,7 +126,8 @@ class TIMU_Revision_Reaper {
 
     public static function add_plugin_action_links( $links ) {
         $custom_links = array(
-            '<a href="' . admin_url( 'tools.php?page=revision-reaper' ) . '">' . esc_html__( 'Settings', 'thisismyurl-revision-reaper' ) . '</a>',
+            '<a href="' . esc_url( admin_url( 'tools.php?page=revision-reaper' ) ) . '">' . esc_html__( 'Settings', 'thisismyurl-revision-reaper' ) . '</a>',
+            '<a href="' . esc_url( 'https://github.com/sponsors/thisismyurl' ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Sponsor', 'thisismyurl-revision-reaper' ) . '</a>',
         );
         return array_merge( $custom_links, $links );
     }
@@ -139,65 +136,137 @@ class TIMU_Revision_Reaper {
      * Automated cleanup logic with email reporting.
      */
     public static function do_scheduled_cleanup() {
-        $post_type_limits = get_option( 'timu_rr_post_type_limits', array() );
-        if ( ! is_array( $post_type_limits ) ) {
-            $post_type_limits = array();
-        }
         $settings = array(
-            'limit'            => get_option( 'timu_rr_limit', 3 ),
-            'include_trash'    => get_option( 'timu_rr_auto_trash', 0 ),
-            'include_spam'     => get_option( 'timu_rr_auto_spam', 0 ),
-            'post_type_limits' => $post_type_limits,
+            'limit'         => get_option( 'timu_rr_limit', 3 ),
+            'include_trash' => get_option( 'timu_rr_auto_trash', 0 ),
+            'include_spam'  => get_option( 'timu_rr_auto_spam', 0 ),
         );
         $email = get_option( 'timu_rr_report_email', get_option( 'admin_email' ) );
 
-        $items = self::get_eligible_items( $settings );
-        $log = array();
+        $report = self::run_cleanup( $settings );
 
-        // Pre-delete snapshot so a regretted scheduled run can be reconstructed
-        // from disk. Failure to write is logged but does not abort the run —
-        // the run itself uses trash, not force-delete (see class header).
-        if ( ! empty( $items ) ) {
-            $export_path = TIMU_Revision_Reaper_Exporter::snapshot_before_run( $items, (int) $settings['limit'] );
+        // Only email when the run actually cleaned something. A weekly
+        // "No items required cleaning" notice is the top driver of "why is
+        // this plugin emailing me" support tickets, so a quiet run stays
+        // silent. We gate on the per-category counts rather than the log,
+        // because the log carries bookkeeping lines (pre-run export written,
+        // etc.) even on a run that removed no rows.
+        $cleaned = (int) $report['revisions']
+            + (int) $report['trashed_posts']
+            + (int) $report['spam_comments']
+            + (int) $report['transients']
+            + (int) $report['tables'];
+
+        if ( ! empty( $email ) && $cleaned > 0 ) {
+            $subject = '[' . get_bloginfo( 'name' ) . '] Revision Reaper Automated Report';
+            $message = "The scheduled database cleanup has finished.\n\nItems Processed:\n" . implode( "\n", $report['log'] );
+            wp_mail( $email, $subject, $message );
+        }
+    }
+
+    /**
+     * Perform a full cleanup pass and return structured counts plus ROI.
+     *
+     * This is the canonical, UI-agnostic cleanup routine. The scheduled-cron
+     * handler, the WP-CLI command, and the Abilities API all funnel through
+     * here so the deletion rules and ROI maths live in exactly one place.
+     *
+     * The run is non-destructive in the same sense the rest of the plugin is:
+     * trashed posts are force-deleted only once they have aged past
+     * EMPTY_TRASH_DAYS, spam comments are moved to the comment trash (not
+     * force-deleted), and a JSON snapshot is written before any row is touched.
+     *
+     * @param array $settings { limit, include_trash, include_spam, include_revisions }.
+     *                        include_revisions is optional and defaults to true
+     *                        (the historical behaviour); set it false to skip the
+     *                        revision sweep entirely.
+     * @param array $caps     Optional overrides forwarded to get_eligible_items().
+     * @param bool  $dry_run  When true, compute counts and ROI without deleting.
+     * @return array {
+     *     @type int    $revisions      Posts whose surplus revisions were reaped.
+     *     @type int    $trashed_posts  Trashed posts purged (aged past EMPTY_TRASH_DAYS).
+     *     @type int    $trash_skipped  Trashed posts skipped (not yet old enough).
+     *     @type int    $spam_comments  Spam comments moved to the comment trash.
+     *     @type int    $transients     Expired transient pairs removed.
+     *     @type int    $tables         Tables optimized.
+     *     @type int    $bytes_freed    Bytes reclaimed from reaped revision rows.
+     *     @type bool   $dry_run        Whether this was a preview run.
+     *     @type string $export         Snapshot file path, or '' when none was written.
+     *     @type array  $log            Human-readable per-step log lines.
+     * }
+     */
+    public static function run_cleanup( array $settings, array $caps = array(), $dry_run = false ) {
+        $dry_run = (bool) $dry_run;
+        $limit   = max( 0, (int) $settings['limit'] );
+        $items   = self::get_eligible_items( $settings, $caps );
+        $log     = array();
+        $export  = '';
+
+        // Revisions are swept by default; an explicit false opts out. We filter
+        // the eligible set rather than touch the shared scan so nothing excluded
+        // is ever snapshotted or deleted (mirrors the WP-CLI --include behaviour).
+        $include_revisions = ! array_key_exists( 'include_revisions', $settings ) || ! empty( $settings['include_revisions'] );
+        if ( ! $include_revisions ) {
+            $items = array_values( array_filter( $items, static function ( $item ) {
+                return 'revision' !== $item['type'];
+            } ) );
+        }
+
+        // Pre-delete snapshot so a regretted run can be reconstructed from
+        // disk. Skipped on a dry run — nothing is being removed to snapshot.
+        if ( ! $dry_run && ! empty( $items ) ) {
+            $export_path = TIMU_Revision_Reaper_Exporter::snapshot_before_run( $items, $limit );
             if ( $export_path ) {
-                $log[] = 'Pre-run export written: ' . wp_basename( $export_path );
+                $export = $export_path;
+                $log[]  = 'Pre-run export written: ' . wp_basename( $export_path );
             } else {
                 $log[] = 'WARNING: pre-run export failed to write.';
             }
         }
 
+        $counts = array(
+            'revisions'     => 0,
+            'trashed_posts' => 0,
+            'trash_skipped' => 0,
+            'spam_comments' => 0,
+        );
         $bytes_freed = 0;
 
         foreach ( $items as $item ) {
             if ( 'trash' === $item['type'] ) {
                 // Non-destructive: delegate to WP's trash lifecycle. WP itself
                 // empties trash items older than EMPTY_TRASH_DAYS via the
-                // wp_scheduled_delete cron — we never force-delete here.
+                // wp_scheduled_delete cron — we never force-delete the young.
                 if ( ! self::trash_post_eligible_for_purge( $item['id'] ) ) {
+                    $counts['trash_skipped']++;
                     continue;
                 }
-                wp_delete_post( $item['id'], false );
+                if ( ! $dry_run ) {
+                    wp_delete_post( $item['id'], false );
+                }
+                $counts['trashed_posts']++;
                 $log[] = "Trashed Post #{$item['id']} purged (older than EMPTY_TRASH_DAYS)";
             } elseif ( 'spam' === $item['type'] ) {
                 // Non-destructive: trash spam comments. Site owner can still
                 // recover from the Comments > Trash list before WP empties it.
-                wp_trash_comment( $item['id'] );
+                if ( ! $dry_run ) {
+                    wp_trash_comment( $item['id'] );
+                }
+                $counts['spam_comments']++;
                 $log[] = "Spam Comment #{$item['id']} moved to comment trash";
             } else {
-                // Resolve effective keep limit: per-post-type beats global.
-                $post_type    = get_post_type( $item['id'] );
-                $keep_limit   = ( $post_type && isset( $post_type_limits[ $post_type ] ) && $post_type_limits[ $post_type ] > 0 )
-                    ? (int) $post_type_limits[ $post_type ]
-                    : (int) $settings['limit'];
                 $revisions = wp_get_post_revisions( $item['id'] );
-                $to_remove = array_slice( $revisions, $keep_limit );
+                $to_remove = array_slice( $revisions, $limit );
                 foreach ( $to_remove as $rev ) {
                     // Honest ROI: count actual bytes the row contributed
                     // before we drop it. Sum of post_content lengths is the
                     // dominant component on a revision.
                     $bytes_freed += strlen( (string) $rev->post_content );
-                    wp_delete_post_revision( $rev->ID );
+                    if ( ! $dry_run ) {
+                        wp_delete_post_revision( $rev->ID );
+                    }
                 }
+                $counts['revisions']++;
                 $log[] = "Reaped revisions for Post #{$item['id']}";
             }
         }
@@ -208,27 +277,61 @@ class TIMU_Revision_Reaper {
                 size_format( $bytes_freed )
             );
         }
-        
+
         // Expired transients live in wp_options (or sitemeta on multisite).
-        // The plugin marketed transient cleanup but never implemented it.
-        $expired_transients = self::delete_expired_transients();
-        if ( $expired_transients > 0 ) {
-            $log[] = sprintf( 'Deleted %d expired transient pairs.', (int) $expired_transients );
+        // Counting is inseparable from deletion in WP's helper, so a dry run
+        // reports a separately-measured eligible count instead.
+        $transients = $dry_run ? self::count_expired_transients() : self::delete_expired_transients();
+        if ( $transients > 0 ) {
+            $log[] = sprintf( 'Deleted %d expired transient pairs.', (int) $transients );
         }
 
         // Final database optimization (MyISAM tables only — InnoDB rebuilds
-        // on OPTIMIZE which is wasteful on a maintenance pass).
-        $optimized = self::optimize_wp_tables();
+        // on OPTIMIZE which is wasteful on a maintenance pass). No-op on a
+        // dry run; OPTIMIZE has no safe non-destructive preview.
+        $optimized = $dry_run ? 0 : self::optimize_wp_tables();
         if ( $optimized > 0 ) {
             $log[] = sprintf( 'Optimized %d tables.', (int) $optimized );
         }
 
-        // Send Email Report
-        if ( ! empty( $email ) ) {
-            $subject = '[' . get_bloginfo( 'name' ) . '] Revision Reaper Automated Report';
-            $message = "The scheduled database cleanup has finished.\n\nItems Processed:\n" . ( ! empty( $log ) ? implode( "\n", $log ) : "No items required cleaning." );
-            wp_mail( $email, $subject, $message );
-        }
+        return array(
+            'revisions'     => $counts['revisions'],
+            'trashed_posts' => $counts['trashed_posts'],
+            'trash_skipped' => $counts['trash_skipped'],
+            'spam_comments' => $counts['spam_comments'],
+            'transients'    => (int) $transients,
+            'tables'        => (int) $optimized,
+            'bytes_freed'   => $bytes_freed,
+            'dry_run'       => $dry_run,
+            'export'        => $export,
+            'log'           => $log,
+        );
+    }
+
+    /**
+     * Count expired transient pairs without deleting them.
+     *
+     * WP core's delete_expired_transients() returns void and always deletes,
+     * so a dry run needs its own read-only count of the same rows that helper
+     * would remove. Mirrors the LIKE clauses used in delete_expired_transients().
+     *
+     * @return int Number of expired transient *pairs* (value + timeout) eligible for removal.
+     */
+    public static function count_expired_transients() {
+        global $wpdb;
+
+        // Timeout rows whose stored expiry is in the past. Each timeout row
+        // pairs with one value row, so the timeout count is the pair count.
+        $now = time();
+
+        return (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->options}
+             WHERE ( option_name LIKE %s OR option_name LIKE %s )
+               AND option_value < %d",
+            $wpdb->esc_like( '_transient_timeout_' ) . '%',
+            $wpdb->esc_like( '_site_transient_timeout_' ) . '%',
+            $now
+        ) );
     }
 
     /**
@@ -238,30 +341,23 @@ class TIMU_Revision_Reaper {
      * and we simply delegate to it — wrapping it here keeps the call site
      * legible and lets us return a count for the run report.
      *
-     * @return int Number of transient *pairs* (value + timeout) removed.
+     * We pre-count only the *expired* pairs (the rows core is about to remove)
+     * with a single scan via count_expired_transients(), rather than counting
+     * all timeout rows twice (before and after). That earlier before/after
+     * delta meant three full passes over the timeout rows per run — two of our
+     * own counts plus core's own scan — when one read of the rows-to-be-removed
+     * gives the same report number.
+     *
+     * @return int Number of expired transient *pairs* (value + timeout) removed.
      */
     public static function delete_expired_transients() {
-        global $wpdb;
-
-        // Pre-count so we can report something meaningful. WP's helper
-        // returns void, so we measure the option-row delta ourselves.
-        $before = (int) $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->options}
-             WHERE option_name LIKE '\\_transient\\_timeout\\_%'
-                OR option_name LIKE '\\_site\\_transient\\_timeout\\_%'"
-        );
+        $expired = self::count_expired_transients();
 
         if ( function_exists( 'delete_expired_transients' ) ) {
             delete_expired_transients( true );
         }
 
-        $after = (int) $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->options}
-             WHERE option_name LIKE '\\_transient\\_timeout\\_%'
-                OR option_name LIKE '\\_site\\_transient\\_timeout\\_%'"
-        );
-
-        return max( 0, $before - $after );
+        return $expired;
     }
 
     /**
@@ -404,11 +500,8 @@ class TIMU_Revision_Reaper {
         $remaining = (int) $caps['max_items'];
 
         // 1. Posts whose revision count exceeds the keep limit.
-        $paged            = 1;
-        $rev_done         = false;
-        $post_type_limits = isset( $settings['post_type_limits'] ) && is_array( $settings['post_type_limits'] )
-            ? $settings['post_type_limits']
-            : array();
+        $paged    = 1;
+        $rev_done = false;
         while ( ! $rev_done && $remaining > 0 ) {
             $q = new WP_Query( array(
                 'post_type'              => $caps['post_types'],
@@ -429,12 +522,7 @@ class TIMU_Revision_Reaper {
 
             foreach ( $q->posts as $post_id ) {
                 $revisions = wp_get_post_revisions( $post_id, array( 'fields' => 'ids' ) );
-                // Resolve effective keep limit: per-post-type beats global.
-                $post_type  = get_post_type( $post_id );
-                $keep_limit = ( $post_type && isset( $post_type_limits[ $post_type ] ) && $post_type_limits[ $post_type ] > 0 )
-                    ? (int) $post_type_limits[ $post_type ]
-                    : (int) $settings['limit'];
-                if ( count( $revisions ) > $keep_limit ) {
+                if ( count( $revisions ) > (int) $settings['limit'] ) {
                     $items[]    = array( 'id' => (int) $post_id, 'type' => 'revision' );
                     $remaining--;
                     if ( $remaining <= 0 ) {
@@ -659,15 +747,10 @@ class TIMU_Revision_Reaper {
             wp_send_json_error( esc_html__( 'Unauthorized', 'thisismyurl-revision-reaper' ), 403 );
         }
 
-        $pt_limits = get_option( 'timu_rr_post_type_limits', array() );
-        if ( ! is_array( $pt_limits ) ) {
-            $pt_limits = array();
-        }
         $settings = array(
-            'limit'            => (int) get_option( 'timu_rr_limit', 3 ),
-            'include_trash'    => (int) get_option( 'timu_rr_auto_trash', 0 ),
-            'include_spam'     => (int) get_option( 'timu_rr_auto_spam', 0 ),
-            'post_type_limits' => $pt_limits,
+            'limit'         => (int) get_option( 'timu_rr_limit', 3 ),
+            'include_trash' => (int) get_option( 'timu_rr_auto_trash', 0 ),
+            'include_spam'  => (int) get_option( 'timu_rr_auto_spam', 0 ),
         );
 
         $items = self::get_eligible_items( $settings );
@@ -755,24 +838,6 @@ class TIMU_Revision_Reaper {
             update_option( 'timu_rr_auto_spam', isset( $_POST['include_spam'] ) ? 1 : 0 );
             update_option( 'timu_rr_report_email', sanitize_email( wp_unslash( $_POST['report_email'] ?? '' ) ) );
 
-            // Per-post-type revision limits.
-            $raw_pt_limits    = isset( $_POST['rr_pt_limit'] ) && is_array( $_POST['rr_pt_limit'] )
-                ? wp_unslash( $_POST['rr_pt_limit'] )  // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-                : array();
-            $clean_pt_limits  = array();
-            $allowed_pt       = self::get_target_post_types();
-            foreach ( $raw_pt_limits as $pt_slug => $pt_limit_raw ) {
-                $pt_slug = sanitize_key( $pt_slug );
-                if ( ! in_array( $pt_slug, $allowed_pt, true ) ) {
-                    continue;
-                }
-                $pt_limit = absint( $pt_limit_raw );
-                if ( $pt_limit > 0 ) {
-                    $clean_pt_limits[ $pt_slug ] = $pt_limit;
-                }
-            }
-            update_option( 'timu_rr_post_type_limits', $clean_pt_limits );
-
             // Automation persistent setting.
             $enable_automation = isset( $_POST['enable_schedule'] ) ? 1 : 0;
             update_option( 'timu_rr_enable_automation', $enable_automation );
@@ -813,17 +878,8 @@ class TIMU_Revision_Reaper {
         $saved_date          = get_option( 'timu_rr_schedule_date', wp_date( 'Y-m-d' ) );
         $saved_time          = get_option( 'timu_rr_schedule_time', '00:00' );
         $saved_recurrence    = get_option( 'timu_rr_schedule_recurrence', 'weekly' );
-        $pt_limits           = get_option( 'timu_rr_post_type_limits', array() );
-        if ( ! is_array( $pt_limits ) ) {
-            $pt_limits = array();
-        }
 
-        $settings = array(
-            'limit'            => $current_limit,
-            'include_trash'    => $auto_trash,
-            'include_spam'     => $auto_spam,
-            'post_type_limits' => $pt_limits,
-        );
+        $settings = array( 'limit' => $current_limit, 'include_trash' => $auto_trash, 'include_spam' => $auto_spam );
 
         // Run-mode is delivered via transient (set by handle_run_post) so it
         // can't be replayed from a URL or bookmarked. ?reap=1 is just a flag
@@ -845,9 +901,9 @@ class TIMU_Revision_Reaper {
                 <small style="font-size: 0.5em; font-weight: normal; vertical-align: middle; margin-left: 10px; color: #646970;">
                     <?php
                     printf(
-                        /* translators: %s: brand name "This Is My URL" */
+                        /* translators: %s: brand name "Christopher Ross" */
                         esc_html__( 'by %s', 'thisismyurl-revision-reaper' ),
-                        esc_html__( 'This Is My URL', 'thisismyurl-revision-reaper' )
+                        esc_html__( 'Christopher Ross', 'thisismyurl-revision-reaper' )
                     );
                     ?>
                 </small>
@@ -863,24 +919,24 @@ class TIMU_Revision_Reaper {
                         <div class="postbox">
                             <h2 class="hndle"><span><?php esc_html_e( 'Configuration & Automation', 'thisismyurl-revision-reaper' ); ?></span></h2>
                             <div class="inside">
-                                <table class="form-table">
+                                <table class="form-table" role="presentation">
                                     <tr>
-                                        <th scope="row"><?php esc_html_e( 'Revisions to Keep', 'thisismyurl-revision-reaper' ); ?></th>
+                                        <th scope="row"><label for="rr-limit"><?php esc_html_e( 'Revisions to Keep', 'thisismyurl-revision-reaper' ); ?></label></th>
                                         <td><input type="number" name="rev_limit" id="rr-limit" value="<?php echo esc_attr( $current_limit ); ?>" class="small-text"></td>
                                     </tr>
                                     <tr>
-                                        <th scope="row"><?php esc_html_e( 'Include Trash', 'thisismyurl-revision-reaper' ); ?></th>
-                                        <td><input type="checkbox" name="include_trash" id="rr-trash" value="1" <?php checked( $auto_trash ); ?>></td>
+                                        <th scope="row" id="rr-trash-label"><?php esc_html_e( 'Include Trash', 'thisismyurl-revision-reaper' ); ?></th>
+                                        <td><input type="checkbox" name="include_trash" id="rr-trash" value="1" aria-labelledby="rr-trash-label" <?php checked( $auto_trash ); ?>></td>
                                     </tr>
                                     <tr>
-                                        <th scope="row"><?php esc_html_e( 'Include Spam', 'thisismyurl-revision-reaper' ); ?></th>
-                                        <td><input type="checkbox" name="include_spam" id="rr-spam" value="1" <?php checked( $auto_spam ); ?>></td>
+                                        <th scope="row" id="rr-spam-label"><?php esc_html_e( 'Include Spam', 'thisismyurl-revision-reaper' ); ?></th>
+                                        <td><input type="checkbox" name="include_spam" id="rr-spam" value="1" aria-labelledby="rr-spam-label" <?php checked( $auto_spam ); ?>></td>
                                     </tr>
                                     <tr><td colspan="2"><hr></td></tr>
                                     <tr>
-                                        <th scope="row"><?php esc_html_e( 'Enable Automation', 'thisismyurl-revision-reaper' ); ?></th>
+                                        <th scope="row" id="rr-schedule-label"><?php esc_html_e( 'Enable Automation', 'thisismyurl-revision-reaper' ); ?></th>
                                         <td>
-                                            <input type="checkbox" name="enable_schedule" value="1" <?php checked( $automation_enabled ); ?>>
+                                            <input type="checkbox" name="enable_schedule" id="rr-schedule" value="1" aria-labelledby="rr-schedule-label" <?php checked( $automation_enabled ); ?>>
                                             <?php if ( $next_run ) : ?>
                                                 <p class="description" style="color:#2271b1; font-weight:bold;">
                                                     <?php
@@ -934,66 +990,6 @@ class TIMU_Revision_Reaper {
                         </div>
                         </form>
 
-                        <form method="post">
-                        <?php wp_nonce_field( 'timu_rr_save_settings', 'timu_rr_settings_nonce' ); ?>
-                        <div class="postbox">
-                            <h2 class="hndle"><span><?php esc_html_e( 'Per-Post-Type Revision Limits', 'thisismyurl-revision-reaper' ); ?></span></h2>
-                            <div class="inside">
-                                <p class="description">
-                                    <?php
-                                    printf(
-                                        /* translators: %d: the global revisions-to-keep number */
-                                        esc_html__( 'Set a revision limit for individual post types. Leave a field empty to use the global limit (%d). Values here override the global limit for that post type only.', 'thisismyurl-revision-reaper' ),
-                                        (int) $current_limit
-                                    );
-                                    ?>
-                                </p>
-                                <table class="form-table">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col"><?php esc_html_e( 'Post Type', 'thisismyurl-revision-reaper' ); ?></th>
-                                            <th scope="col"><?php esc_html_e( 'Revision Limit', 'thisismyurl-revision-reaper' ); ?></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                    <?php
-                                    $target_post_types = self::get_target_post_types();
-                                    foreach ( $target_post_types as $pt_slug ) {
-                                        $pt_obj   = get_post_type_object( $pt_slug );
-                                        $pt_label = $pt_obj ? $pt_obj->labels->singular_name : $pt_slug;
-                                        $pt_value = isset( $pt_limits[ $pt_slug ] ) ? (int) $pt_limits[ $pt_slug ] : '';
-                                        ?>
-                                        <tr>
-                                            <td>
-                                                <label for="rr-pt-limit-<?php echo esc_attr( $pt_slug ); ?>">
-                                                    <?php echo esc_html( $pt_label ); ?>
-                                                    <code style="font-size:0.85em; color:#646970;">(<?php echo esc_html( $pt_slug ); ?>)</code>
-                                                </label>
-                                            </td>
-                                            <td>
-                                                <input
-                                                    type="number"
-                                                    id="rr-pt-limit-<?php echo esc_attr( $pt_slug ); ?>"
-                                                    name="rr_pt_limit[<?php echo esc_attr( $pt_slug ); ?>]"
-                                                    value="<?php echo esc_attr( (string) $pt_value ); ?>"
-                                                    min="1"
-                                                    placeholder="<?php echo esc_attr( (string) (int) $current_limit ); ?>"
-                                                    class="small-text"
-                                                >
-                                            </td>
-                                        </tr>
-                                        <?php
-                                    }
-                                    ?>
-                                    </tbody>
-                                </table>
-                                <p class="submit">
-                                    <input type="submit" name="rr_save_settings" class="button button-secondary" value="<?php esc_attr_e( 'Save All Settings & Schedule', 'thisismyurl-revision-reaper' ); ?>">
-                                </p>
-                            </div>
-                        </div>
-                        </form>
-
                         <div class="postbox">
                             <h2 class="hndle"><span><?php esc_html_e( 'Run Cleanup', 'thisismyurl-revision-reaper' ); ?></span></h2>
                             <div class="inside">
@@ -1013,8 +1009,8 @@ class TIMU_Revision_Reaper {
                                     <input type="hidden" name="action" value="timu_rr_run">
                                     <p>
                                         <label>
-                                            <input type="checkbox" name="rr_backup_confirm" id="rr-backup-confirm" value="1">
-                                            <?php esc_html_e( 'I understand a JSON snapshot will be written to uploads/revision-reaper/exports/ before deletion and I have verified my own backups are current.', 'thisismyurl-revision-reaper' ); ?>
+                                            <input type="checkbox" name="rr_backup_confirm" id="rr-backup-confirm" value="1" aria-controls="rr-live-run-btn">
+                                            <?php esc_html_e( 'I understand a JSON snapshot will be saved to the database before deletion and I have verified my own backups are current.', 'thisismyurl-revision-reaper' ); ?>
                                         </label>
                                     </p>
                                     <button type="submit" class="button button-primary" id="rr-live-run-btn" disabled><?php esc_html_e( 'Run Now (Live)', 'thisismyurl-revision-reaper' ); ?></button>
@@ -1026,9 +1022,9 @@ class TIMU_Revision_Reaper {
                             <h2 class="hndle"><span><?php echo esc_html( $is_dry_run_active ? __( 'Simulation Log', 'thisismyurl-revision-reaper' ) : __( 'Live Activity Log', 'thisismyurl-revision-reaper' ) ); ?></span></h2>
                             <div class="inside">
                                 <div id="rr-progress-container" style="background:#f0f0f1; height:20px; border-radius:3px; border:1px solid #c3c4c7; margin-bottom:10px; overflow:hidden;">
-                                    <div id="rr-progress-bar" style="background:#2271b1; height:100%; width:0%;"></div>
+                                    <div id="rr-progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="<?php esc_attr_e( 'Cleanup progress', 'thisismyurl-revision-reaper' ); ?>" style="background:#2271b1; height:100%; width:0%;"></div>
                                 </div>
-                                <div id="rr-log" style="background:#f6f7f7; padding:10px; border:1px solid #dcdcde; height:200px; overflow-y:scroll; font-family:monospace;"></div>
+                                <div id="rr-log" role="log" aria-live="assertive" tabindex="0" aria-label="<?php esc_attr_e( 'Cleanup activity log', 'thisismyurl-revision-reaper' ); ?>" style="background:#f6f7f7; padding:10px; border:1px solid #dcdcde; height:200px; overflow-y:scroll; font-family:monospace;"></div>
                             </div>
                         </div>
                     </div>
@@ -1059,21 +1055,13 @@ add_action( 'plugins_loaded', function() {
  * Loads the updater logic once all plugins have been loaded by WordPress.
  */
 add_action( 'plugins_loaded', function() {
-    $updater_path = plugin_dir_path( __FILE__ ) . 'updater.php';
-    
-    // Check if the updater file exists before attempting to require it.
-    if ( file_exists( $updater_path ) ) {
-        require_once $updater_path;
-        
-        // Ensure the GitHub Updater class is available.
-        if ( class_exists( 'TIMU_GitHub_Updater' ) ) {
-            new TIMU_GitHub_Updater( array(
-                'slug'               => 'thisismyurl-revision-reaper',
-                'proper_folder_name' => 'thisismyurl-revision-reaper',
-                'api_url'            => 'https://api.github.com/repos/thisismyurl/thisismyurl-revision-reaper/releases/latest',
-                'github_url'         => 'https://github.com/thisismyurl/thisismyurl-revision-reaper',
-                'plugin_file'        => __FILE__,
-            ) );
-        }
-    }
+    require_once plugin_dir_path( __FILE__ ) . 'github-updater.php';
+
+    \ThisIsMyURL\RevisionReaper\GitHubReleaseUpdater::boot(
+        array(
+            'plugin_file' => __FILE__,
+            'slug'        => 'thisismyurl-revision-reaper',
+            'repo'        => 'thisismyurl/thisismyurl-revision-reaper',
+        )
+    );
 });
