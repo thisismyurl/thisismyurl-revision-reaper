@@ -11,9 +11,6 @@
  * Text Domain: thisismyurl-revision-reaper
  * Domain Path: /languages
  * License:           GPL-2.0-or-later
- * GitHub Plugin URI: https://github.com/thisismyurl/thisismyurl-revision-reaper
- * Primary Branch:    main
- * Update URI:        https://github.com/thisismyurl/thisismyurl-revision-reaper
  * @package Thisismyurl_Revision_Reaper
  */
 
