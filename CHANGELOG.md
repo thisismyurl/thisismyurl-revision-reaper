@@ -5,6 +5,11 @@ follows a `x.Yddd` version scheme — `x` is the release class (`0` =
 pre-release, `1` = full), `Y` is the last digit of the year, `ddd` is the
 Julian day of the year (001–366).
 
+## 1.6190.1550 — 2026-07-09
+
+### Changed
+- UX consistency pass: single-column layout on admin screen; Save button promoted to `button-primary` style.
+
 ## 1.6164.1421 — 2026-06-23 (WP.org gate fixes)
 
 ### Fixes

@@ -5,7 +5,7 @@
  * Plugin Name: Revision Reaper by Christopher Ross
  * Plugin URI:  https://thisismyurl.com/thisismyurl-revision-reaper/
  * Description: Non-destructive database optimization with persistent settings, custom scheduling, and email reporting.
- * Version:     1.6164.1421
+ * Version:     1.6190.1550
  * Requires at least: 6.4
  * Requires PHP: 8.1
  * Text Domain: thisismyurl-revision-reaper

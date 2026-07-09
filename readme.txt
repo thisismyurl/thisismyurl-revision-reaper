@@ -5,7 +5,7 @@ Tags: revisions, database cleanup, performance, wp cron, maintenance
 Requires at least: 6.4
 Tested up to: 6.8
 Requires PHP: 8.1
-Stable tag: 1.6164.1421
+Stable tag: 1.6190.1550
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Plugin URI: https://thisismyurl.com/thisismyurl-revision-reaper/
@@ -90,6 +90,9 @@ I review PRs thoughtfully and appreciate well-tested contributions. Contributing
 
 
 == Changelog ==
+
+= 1.6190.1550 =
+* **Hygiene:** UX consistency pass — single-column layout on the admin screen; Save button promoted to `button-primary` style.
 
 = 1.6150 =
 * Privacy: pre-delete snapshots (which can include comment author email and IP) are now stored as a non-autoloaded option in the database instead of a JSON file under `wp-content/uploads/`. The old file location was web-root on every server and its deny-all `.htaccess` was inert on nginx, so a guessable filename could expose the snapshot to an unauthenticated request. The options table is never web-served, closing that exposure on any web server.
