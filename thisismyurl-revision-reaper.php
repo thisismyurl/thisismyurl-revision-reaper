@@ -911,7 +911,7 @@ class TIMU_Revision_Reaper {
             <p><?php esc_html_e( 'Optimize performance by reaping revisions, trash, and spam using persistent settings.', 'thisismyurl-revision-reaper' ); ?></p>
 
             <div id="poststuff">
-                <div id="post-body" class="metabox-holder columns-2">
+                <div id="post-body" class="metabox-holder columns-1">
                     <div id="post-body-content">
                         
                         <form method="post">
@@ -984,7 +984,7 @@ class TIMU_Revision_Reaper {
                                 </table>
                                 
                                 <p class="submit">
-                                    <input type="submit" name="rr_save_settings" class="button button-secondary" value="<?php esc_attr_e( 'Save All Settings & Schedule', 'thisismyurl-revision-reaper' ); ?>">
+                                    <input type="submit" name="rr_save_settings" class="button button-primary" value="<?php esc_attr_e( 'Save All Settings & Schedule', 'thisismyurl-revision-reaper' ); ?>">
                                 </p>
                             </div>
                         </div>
